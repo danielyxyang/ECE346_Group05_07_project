@@ -5,7 +5,6 @@ import rospy
 import numpy as np
 from threading import Lock
 from iLQR import iLQR, Track, EllipsoidObj
-from realtime_buffer import RealtimeBuffer
 from traj_msgs.msg import TrajMsg
 from nav_msgs.msg import Odometry
 from scipy.spatial.transform import Rotation
@@ -15,7 +14,7 @@ import time
 
 class MPC():
   def __init__(self,
-               track_file=None,
+               cost=None,
                pose_topic='/zed2/zed_node/odom',
                control_topic='/planning/trajectory',
                params_file='modelparams.yaml'):
@@ -36,34 +35,8 @@ class MPC():
     self.d_open_loop = np.array(self.params['d_open_loop'])
     self.replan_dt = self.T / (self.N - 1)
 
-    # create track
-    if track_file is None:
-      # make a circle with 1.5m radius
-      r = 1
-
-      theta = np.linspace(0, 2 * np.pi, 100, endpoint=True)
-      x = r * np.cos(theta)
-      y = r * np.sin(theta)
-      self.track = Track(np.array([x, y]), 0.5, 0.5, True)
-    else:
-      x = []
-      y = []
-      with open(track_file, newline='') as f:
-        spamreader = csv.reader(f, delimiter=',')
-        for i, row in enumerate(spamreader):
-          if i > 0:
-            x.append(float(row[0]))
-            y.append(float(row[1]))
-
-      center_line = np.array([x, y])
-      self.track = Track(center_line=center_line,
-                         width_left=self.params['track_width_L'],
-                         width_right=self.params['track_width_R'],
-                         loop=True)
-
     # set up the optimal control solver
-
-    self.ocp_solver = iLQR(self.track, params=self.params)
+    self.ocp_solver = iLQR(cost, params=self.params)
 
     rospy.loginfo("Successfully initialized the solver with horizon " +
           str(self.T) + "s, and " + str(self.N) + " steps.")
@@ -151,8 +124,7 @@ class MPC():
       prev_plan = self.plan_buffer.readFromRT()
       if cur_state is None:
         continue
-      since_last_pub = self.replan_dt if prev_plan is None else (
-        cur_state.t - prev_plan.t0).to_sec()
+      since_last_pub = self.replan_dt if prev_plan is None else (cur_state.t - prev_plan.t0).to_sec()
       if since_last_pub >= self.replan_dt:
         if prev_plan is None:
           u_init = None
@@ -168,8 +140,7 @@ class MPC():
         # static_obs = EllipsoidObj(q=ego_q, Q=ego_Q)
         # static_obs_list = [static_obs for _ in range(self.N)]
         
-        sol_x, sol_u, _, _, _, sol_K, _, _ = self.ocp_solver.solve(
-          cur_state.state, u_init, record=True, obs_list=[])
+        sol_x, sol_u, _, _, sol_K, _, _ = self.ocp_solver.solve(cur_state.state, u_init, record=True, obs_list=[])
         # print(np.round(sol_x,2))
         # print(np.round(sol_u[1,:],2))
         cur_plan = Plan(sol_x, sol_u, sol_K, cur_state.t, self.replan_dt, self.N)
