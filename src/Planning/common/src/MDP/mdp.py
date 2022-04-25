@@ -102,74 +102,53 @@ class MDP():
   
   def get_mdp(self):
     return self.num_a, self.num_s, self.R, self.P
-
-  def value_iteration(self, threshold = .001):
+  
+  def value_iteration(self, threshold=1e-3):
     numa, nums, R, P = self.get_mdp()
     V_star = np.zeros(nums)
     pi_star = np.zeros(nums)
     
-    ####
-    count = 0
     while True:
       V_old = V_star
-      
       # compute quality matrix with Q.shape = [num_states, num_actions]
       Q = R + self.gam * np.einsum("jia,j->ia", P, V_star) # i = current state, j = next state, a = action
       # find action with highest quality for each state
       pi_star = np.argmax(Q, axis=1)
       V_star = Q[range(nums), pi_star]
-      
-      # update iteration counter
-      count += 1
       # check convergence
       if np.max(np.abs(V_star - V_old)) < threshold:
         break
-    
-    print("Value iteration: {} iterations".format(count))
-    ####
 
     return V_star, pi_star
 
-  def policy_eval(self, policy, threshold = .001):
+  def policy_eval(self, policy):
     numa, nums, R, P = self.get_mdp()
     V = np.zeros(nums)
     
-    ####
     # compute value vector by solving LSE
     A = np.eye(nums) - self.gam * P[:, range(nums), policy].T
     b = R[range(nums), policy]
     V = np.linalg.solve(A, b)
-    ####
 
     return V
 
   def policy_iteration(self, threshold = .001):
     numa, nums, R, P = self.get_mdp()
-    # initialize a random policy with length nums and action randomly assigned from numa
     pi_star = np.random.randint(0, numa, nums)
     V_star = np.zeros(nums)
     
-    ####
-    count = 0
     while True:
       pi_old = pi_star
-
       # policy evaluation
-      V_star = self.policy_eval(pi_star, threshold=threshold)
+      V_star = self.policy_eval(pi_star)
       # policy update
       Q = R + self.gam * np.einsum("jia,j->ia", P, V_star) # i = current state, j = next state, a = action
       pi_star = np.argmax(Q, axis=1)
-      
-      # update iteration counter
-      count += 1
       # check convergence
       if (pi_star == pi_old).all():
         break
 
     # policy evaluation of final policy
-    V_star = self.policy_eval(pi_star, threshold=threshold)
-
-    print("Policy iteration: {} iterations".format(count))
-    ####
+    V_star = self.policy_eval(pi_star)
     
     return V_star, pi_star

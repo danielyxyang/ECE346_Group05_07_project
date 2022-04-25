@@ -129,7 +129,7 @@ class Track:
 
 if __name__ == '__main__':
   import csv
-  track_file = 'outerloop_center_smooth.csv'
+  track_file = 'track_demo.csv'
   x = []
   y = []
   with open(track_file, newline='') as f:
