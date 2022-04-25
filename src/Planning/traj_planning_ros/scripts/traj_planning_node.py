@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 import rospy
 from std_msgs.msg import String
-from planning import Planning_MPC
-import sys, os
+import numpy as np
+from MPC import MPC
+from iLQR import Track
+from cost_trajectory import CostTrajectory
+import sys, os, csv, yaml
 
 
 def main():
@@ -14,7 +17,30 @@ def main():
     ParamsFile = rospy.get_param("~PlanParamsFile")
     TrackFile = rospy.get_param("~TrackFile")    
 
-    planner = Planning_MPC(track_file=TrackFile,
+    # read parameters
+    with open(ParamsFile) as file:
+      params = yaml.load(file, Loader=yaml.FullLoader)
+    
+    # read track file
+    x = []
+    y = []
+    with open(TrackFile, newline='') as f:
+        spamreader = csv.reader(f, delimiter=',')
+        for i, row in enumerate(spamreader):
+            if i > 0:
+                x.append(float(row[0]))
+                y.append(float(row[1]))
+
+    center_line = np.array([x, y])
+    track = Track(center_line=center_line,
+                  width_left=params['track_width_L'],
+                  width_right=params['track_width_R'],
+                  loop=True)
+
+    # define cost function
+    cost = CostTrajectory(params, track)
+
+    planner = MPC(cost=cost,
                  pose_topic=PoseTopic,
                  control_topic=ControllerTopic,
                  params_file=ParamsFile)

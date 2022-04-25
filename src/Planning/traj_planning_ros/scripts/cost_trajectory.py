@@ -1,13 +1,14 @@
 import numpy as np
-from .constraints import Constraints
+from constraints_trajectory import ConstraintsTrajectory
 import time 
 
-class Cost:
+class CostTrajectory:
 
-  def __init__(self, params):
+  def __init__(self, params, ref_path):
 
     self.params = params
-    self.soft_constraints = Constraints(params)
+    self.ref_path = ref_path
+    self.soft_constraints = ConstraintsTrajectory(params)
 
     # load parameters
     self.T = params['T']  # Planning Time Horizon
@@ -36,7 +37,7 @@ class Cost:
   def update_obs(self, frs_list):
     self.soft_constraints.update_obs(frs_list)
 
-  def get_cost(self, states, controls, closest_pt, slope, theta):
+  def get_cost(self, states, controls):
     """
     Calculates the cost given planned states and controls.
 
@@ -52,7 +53,8 @@ class Cost:
     Returns:
         np.ndarray: costs.
     """
-    
+    closest_pt, slope, theta = self.ref_path.get_closest_pts(states[:2, :])
+
     transform = np.array([[
         np.sin(slope), -np.cos(slope), self.zeros, self.zeros
     ], [self.zeros, self.zeros, self.ones, self.zeros]])
@@ -91,7 +93,7 @@ class Cost:
 
     return J
 
-  def get_derivatives(self, states, controls, closest_pt, slope):
+  def get_derivatives(self, states, controls):
     '''
     Calculate Jacobian and Hessian of the cost function
         states: 4xN array of planned trajectory
@@ -99,6 +101,8 @@ class Cost:
         closest_pt: 2xN array of each state's closest point [x,y] on the track
         slope: 1xN array of track's slopes (rad) at closest points
     '''
+    closest_pt, slope, theta = self.ref_path.get_closest_pts(states[:2, :])
+
     c_x_cons, c_xx_cons, c_u_cons, c_uu_cons, c_ux_cons = (
         self.soft_constraints.get_derivatives(
             states, controls, closest_pt, slope

@@ -1,9 +1,9 @@
 from typing import List
 import numpy as np
-from .ellipsoid_obj import EllipsoidObj
+from iLQR import EllipsoidObj
 import time
 
-class Constraints:
+class ConstraintsTrajectory:
 
     def __init__(self, params):
         # load parameters
