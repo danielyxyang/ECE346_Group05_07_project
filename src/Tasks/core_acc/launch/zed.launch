@@ -1,0 +1,6 @@
+<launch>
+    <arg name="NameSpace"  default="nxX" doc="name space of the ros nodes"/>
+    <group ns="$(arg NameSpace)">
+        <include file="$(find zed_wrapper)/launch/zed2.launch"/>
+    </group>
+</launch>
