@@ -16,10 +16,7 @@ To set up the shell environment, source ONE of the setup files
 $ source setup.sh            # without ROS network communication
 ```
 ```shell
-$ source setup_client.sh     # set truck as client with default host NX7
-```
-```shell
-$ source setup_client.sh 05  # set truck as client with host NX5
+$ source setup_client.sh 07  # set truck as client with host NX7
 ```
 ```shell
 $ source setup_host.sh       # set truck as host
