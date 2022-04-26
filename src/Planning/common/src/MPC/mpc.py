@@ -6,6 +6,7 @@ import time
 import numpy as np
 from scipy.spatial.transform import Rotation
 
+import rospy
 from nav_msgs.msg import Odometry
 from rc_control_msgs.msg import RCControl
 from iLQR import iLQR, Cost
