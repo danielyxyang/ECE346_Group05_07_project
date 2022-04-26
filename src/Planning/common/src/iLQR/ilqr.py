@@ -1,5 +1,3 @@
-from termios import B1200
-from weakref import ref
 import numpy as np
 from .cost import Cost
 from .dynamics import Dynamics
@@ -46,13 +44,12 @@ class iLQR():
   def backward_pass(self, nominal_states, nominal_controls):
     L_x, L_xx, L_u, L_uu, L_ux = self.cost.get_derivatives(nominal_states, nominal_controls)
     A, B = self.dynamics.get_AB_matrix(nominal_states, nominal_controls)
-
     reg_mat = self.lambad * np.eye(self.dim_u)
-
+    
+    # initialize optimal control
     k_open_loop = np.zeros((self.dim_u, self.N - 1))
     K_closed_loop = np.zeros((self.dim_u, self.dim_x, self.N - 1))
-    
-    # derivative of value function at final step
+    # set derivatives of value function at final step
     p = L_x[:, -1]
     P = L_xx[:, :, -1]
     for t in range(self.N-2, -1, -1):
@@ -69,7 +66,7 @@ class iLQR():
       k_open_loop[:, t] = -Q_uu_inv @ Q_u
       K_closed_loop[:, :, t] = -Q_uu_inv @ Q_ux
 
-      # update value function and its derivatives
+      # update derivatives of value function
       p = Q_x - Q_ux.T @ Q_uu_inv @ Q_u
       P = Q_xx - Q_ux.T @ Q_uu_inv @ Q_ux
 

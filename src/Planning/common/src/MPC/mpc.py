@@ -1,33 +1,29 @@
 #!/usr/bin/env python
 
 import threading
-import rospy
-import numpy as np
 from threading import Lock
-from iLQR import iLQR, Track, EllipsoidObj
-from traj_msgs.msg import TrajMsg
-from nav_msgs.msg import Odometry
-from scipy.spatial.transform import Rotation
-from rc_control_msgs.msg import RCControl
-import yaml, csv
 import time
+import numpy as np
+from scipy.spatial.transform import Rotation
+
+from nav_msgs.msg import Odometry
+from rc_control_msgs.msg import RCControl
+from iLQR import iLQR, Cost
 
 class MPC():
-  def __init__(self,
-               cost=None,
+  def __init__(self, cost: Cost, params,
                pose_topic='/zed2/zed_node/odom',
-               control_topic='/planning/trajectory',
-               params_file='modelparams.yaml'):
+               control_topic='/planning/trajectory'):
     """
     Main class for the MPC trajectory planner
-    Input:
-      freq: frequence to publish the control input to ESC and Servo
-      T: prediction time horizon for the MPC
-      N: number of integration steps in the MPC
+
+    Args:
+      cost: Cost object passed to the iLQR planner
+      params: parameters
+      pose_topic: topic where to subscribe for current pose?
+      control_topic: topic where to publish control
     """
-    # load parameters
-    with open(params_file) as file:
-      self.params = yaml.load(file, Loader=yaml.FullLoader)
+    self.params = params
 
     # parameters for the ocp solver
     self.T = self.params['T']
@@ -145,10 +141,6 @@ class MPC():
         # print(np.round(sol_u[1,:],2))
         cur_plan = Plan(sol_x, sol_u, sol_K, cur_state.t, self.replan_dt, self.N)
         self.plan_buffer.writeFromNonRT(cur_plan)
-
-  def run(self):
-    rospy.spin()
-
 
 class State():
   def __init__(self, state, t) -> None:

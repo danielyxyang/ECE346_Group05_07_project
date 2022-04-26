@@ -34,7 +34,7 @@ class MDP():
       self.num_s = self.num_s * len(self.s[i])
     self.num_a = len(self.a)
     # transition function
-    # P[new_state, current_state, action] = probability
+    # P[current_state, new_state, action] = probability
     self.P = np.zeros((self.num_s, self.num_s, self.num_a))
     
     # reward function
@@ -51,7 +51,7 @@ class MDP():
     # get correct index of MDP action from input action
     action_index = self.a.index(action)
 
-    self.P[self.get_index(new_state), self.get_index(current_state), action_index] = p
+    self.P[self.get_index(current_state), self.get_index(new_state), action_index] = p
 
   def add_reward(self, state, action, reward):
     self.R[self.get_index(state), self.a.index(action)] = reward
@@ -111,7 +111,7 @@ class MDP():
     while True:
       V_old = V_star
       # compute quality matrix with Q.shape = [num_states, num_actions]
-      Q = R + self.gam * np.einsum("jia,j->ia", P, V_star) # i = current state, j = next state, a = action
+      Q = R + self.gam * np.einsum("ija,j->ia", P, V_star) # i = current state, j = next state, a = action
       # find action with highest quality for each state
       pi_star = np.argmax(Q, axis=1)
       V_star = Q[range(nums), pi_star]
@@ -126,7 +126,7 @@ class MDP():
     V = np.zeros(nums)
     
     # compute value vector by solving LSE
-    A = np.eye(nums) - self.gam * P[:, range(nums), policy].T
+    A = np.eye(nums) - self.gam * P[range(nums), :, policy].T
     b = R[range(nums), policy]
     V = np.linalg.solve(A, b)
 
@@ -142,7 +142,7 @@ class MDP():
       # policy evaluation
       V_star = self.policy_eval(pi_star)
       # policy update
-      Q = R + self.gam * np.einsum("jia,j->ia", P, V_star) # i = current state, j = next state, a = action
+      Q = R + self.gam * np.einsum("ija,j->ia", P, V_star) # i = current state, j = next state, a = action
       pi_star = np.argmax(Q, axis=1)
       # check convergence
       if (pi_star == pi_old).all():

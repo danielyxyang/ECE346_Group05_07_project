@@ -1,11 +1,11 @@
 import numpy as np
+from iLQR import Cost
 from constraints_trajectory import ConstraintsTrajectory
 import time 
 
-class CostTrajectory:
+class CostTrajectory(Cost):
 
   def __init__(self, params, ref_path):
-
     self.params = params
     self.ref_path = ref_path
     self.soft_constraints = ConstraintsTrajectory(params)

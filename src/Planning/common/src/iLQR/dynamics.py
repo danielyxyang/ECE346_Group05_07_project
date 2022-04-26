@@ -87,8 +87,13 @@ class Dynamics:
     Returns the linearized 'A' and 'B' matrix of the ego vehicle around
     nominal states and controls
 
+    Args:
       nominal_states: 4xN array
       nominal_controls: 2xN array
+    
+    Returns:
+      np.ndarray: A
+      np.ndarray: B
     """
     v = nominal_states[2, :]
     psi = nominal_states[3, :]

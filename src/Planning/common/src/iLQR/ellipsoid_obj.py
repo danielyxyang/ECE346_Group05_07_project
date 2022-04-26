@@ -10,8 +10,26 @@ class EllipsoidObj():
   def __init__(
       self, ellipsoid: Optional[Ellipsoid] = None,
       q: np.ndarray = np.array([]), Q: np.ndarray = np.array([[], []]),
-      auto_sym: bool = True, psd_tol: float = 1e-15, r=None, n_circ = None, center_L = None, major_axis = None
+      r=None, n_circ = None, center_L = None, major_axis = None,
+      auto_sym: bool = True, psd_tol: float = 1e-15,
   ):
+    """
+    Approximate Ellipsoid object with `n_circ` many circles for faster computations
+
+    Note that only either ellipsoid or (q, Q) are required to be specified to create an
+    EllipsoidObj. The parameters `r` and `n_circ` can be used for fine-tuning to create
+    more "conservative" EllipsoidObj. The remaining parameters are set automatically.
+
+    Args:
+      ellipsoid: Ellipsoid object to be approximated (alternatively specified by q and Q)
+      q: (2,) array providing ellipsoid center
+      Q: (2,2) matrix providing ellipsoid shape
+      r: radius of circles (default: semi-minor axis)
+      n_circ: number of circles used for ellipsoid (default: ceil(semi-major axis / r))
+      center_L: (n_circ,) array providing circle centers (default: uniformly distributed)
+      major_axis: (2,) array providing ellipsoid major axis (default: eigenvector of largest eigenvalue of Q)
+    """
+    
     def symmetricize(Q):
       if Q.shape[1] == 0:
         return Q

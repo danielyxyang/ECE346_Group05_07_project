@@ -17,11 +17,11 @@ def main():
     ParamsFile = rospy.get_param("~PlanParamsFile")
     TrackFile = rospy.get_param("~TrackFile")    
 
-    # read parameters
+    # load parameters
     with open(ParamsFile) as file:
       params = yaml.load(file, Loader=yaml.FullLoader)
     
-    # read track file
+    # load track file
     x = []
     y = []
     with open(TrackFile, newline='') as f:
@@ -40,11 +40,10 @@ def main():
     # define cost function
     cost = CostTrajectory(params, track)
 
-    planner = MPC(cost=cost,
-                 pose_topic=PoseTopic,
-                 control_topic=ControllerTopic,
-                 params_file=ParamsFile)
-    planner.run()
+    planner = MPC(cost, params,
+                  pose_topic=PoseTopic,
+                  control_topic=ControllerTopic)
+    rospy.spin()
 
 
 if __name__ == '__main__':
