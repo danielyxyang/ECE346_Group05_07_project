@@ -1,3 +1,32 @@
+# ECE346 Final Project
+
+## Setup
+
+### Installation
+Clone the Git repository and setup the environment.
+```shell
+$ git clone https://github.com/dyang1234/ECE346_Group05_07_project.git
+$ cd ECE346_Group05_07_project
+$ ./setup_env.sh
+```
+
+### Set up shell environment
+To set up the shell environment, source ONE of the setup files
+```shell
+$ source setup.sh            # without ROS network communication
+```
+```shell
+$ source setup_client.sh     # set truck as client with default host NX7
+```
+```shell
+$ source setup_client.sh 05  # set truck as client with host NX5
+```
+```shell
+$ source setup_host.sh       # set truck as host
+```
+
+-------------------------------------------------
+
 # ECE346 Final Project Resource
 
 ## ROS Network
@@ -8,7 +37,6 @@ When running ROS over network, there should be **exactly one host** and can have
 To setup ROS network, we provided simple scripts. You only need to modify the ```host.sh``` and ```client.sh``` files to replace proper IP addresses of your host and client robots. Then for each new termainal, you opened you should ```source``` the ```.sh``` file before you ```source devel/setup.bash```.
 
 ## Starting Code
-
 We provide perception, control, and base planning codes for you to start working on Final Projects. Both control and perception codes are same as you had in the lab and self-contained, so that you will not need to do any updates with submodules. 
 
 ### Changes in planning
