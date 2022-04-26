@@ -32,17 +32,12 @@ def main():
                 y.append(float(row[1]))
 
     center_line = np.array([x, y])
-    track = Track(center_line=center_line,
-                  width_left=params['track_width_L'],
-                  width_right=params['track_width_R'],
-                  loop=True)
+    track = Track(center_line=center_line, width_left=params['track_width_L'], width_right=params['track_width_R'], loop=True)
 
     # define cost function
     cost = CostTrajectory(params, track)
 
-    planner = MPC(cost, params,
-                  pose_topic=PoseTopic,
-                  control_topic=ControllerTopic)
+    planner = MPC(cost, params, pose_topic=PoseTopic, control_topic=ControllerTopic)
     rospy.spin()
 
 

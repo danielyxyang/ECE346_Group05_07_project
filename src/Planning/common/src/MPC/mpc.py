@@ -43,11 +43,7 @@ class MPC():
 
     # set up publiser to the reference trajectory and subscriber to the pose
     self.control_pub = rospy.Publisher(control_topic, RCControl, queue_size=1)
-
-    self.pose_sub = rospy.Subscriber(pose_topic,
-                    Odometry,
-                    self.odom_sub_callback,
-                    queue_size=1)
+    self.pose_sub = rospy.Subscriber(pose_topic, Odometry, self.odom_sub_callback, queue_size=1)
   
     # start planning thread
     threading.Thread(target=self.ilqr_pub_thread).start()
