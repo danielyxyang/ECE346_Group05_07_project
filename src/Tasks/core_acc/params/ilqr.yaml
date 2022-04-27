@@ -27,7 +27,7 @@ track_offset: 0.15
 # cost
 w_vel: 2
 w_contour: 30
-w_theta: 0
+w_theta: 1
 w_accel: 1
 w_delta: 5
 

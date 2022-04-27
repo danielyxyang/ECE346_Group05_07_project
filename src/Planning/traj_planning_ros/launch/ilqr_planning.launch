@@ -5,10 +5,10 @@
     <arg name="TrackFile"   default="$(find traj_planning_ros)/params/outerloop_center_smooth.csv"    doc="Trajectory Center"/>
     <arg name="NameSpace"  default="nxX" doc="name space of the ros nodes"/>
     <group ns="$(arg NameSpace)">
-        <include file="$(find rc_control)/launch/rc_control_node.launch"/>
-
+        <include file="$(find rc_control)/launch/rc_control_node.launch">
+            <arg name="NameSpace" value="$(arg NameSpace)"/>
+        </include>
         <include file="$(find zed_wrapper)/launch/zed2.launch"/>
-
         <node pkg="traj_planning_ros" type="traj_planning_node.py" name="traj_planning" output="$(arg output)">
             <param name="ControllerTopic"           value="/$(arg NameSpace)$(arg ControllerTopic)" />
             <param name="PoseTopic"           value="/$(arg NameSpace)$(arg PoseTopic)" />
