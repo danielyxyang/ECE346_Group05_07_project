@@ -35,8 +35,7 @@ class MPC():
         # set up the optimal control solver
         self.ocp_solver = iLQR(cost, params=self.params)
 
-        rospy.loginfo("Successfully initialized the solver with horizon " +
-                    str(self.T) + "s, and " + str(self.N) + " steps.")
+        rospy.loginfo("Successfully initialized the solver with horizon {}s, and {} steps.".format(self.T, self.N))
 
         self.state_buffer = RealtimeBuffer()
         self.plan_buffer = RealtimeBuffer()
@@ -46,16 +45,16 @@ class MPC():
         self.pose_sub = rospy.Subscriber(pose_topic, Odometry, self.odom_sub_callback, queue_size=1)
     
         # start planning thread
-        self.stop_ilqr = True
+        # self.stop_ilqr = True
         self.thread_ilqr = threading.Thread(target=self.ilqr_pub_thread).start()
         
-    def run(self):
-        self.stop_ilqr = False
-        # self.thread_ilqr.start()
+    # def run(self):
+    # 	self.stop_ilqr = False
+    # 	# self.thread_ilqr.start()
         
-    def stop(self):
-        self.stop_ilqr = True
-        # self.thread_ilqr.join()
+    # def stop(self):
+    # 	self.stop_ilqr = True
+    # 	# self.thread_ilqr.join()
 
 
     def odom_sub_callback(self, odomMsg):
@@ -115,16 +114,16 @@ class MPC():
         self.control_pub.publish(control)
 
     def ilqr_pub_thread(self):
-        # time.sleep(5)
+        time.sleep(5)
         rospy.loginfo("iLQR Planning publishing thread started")
         while not rospy.is_shutdown():
-            if self.stop_ilqr:
-                # self.plan_buffer = RealtimeBuffer()
-                self.plan_buffer.writeFromNonRT(None)
-                time.sleep(0.01)
-                continue
+            # if self.stop_ilqr:
+            # 	# self.plan_buffer = RealtimeBuffer()
+            # 	self.plan_buffer.writeFromNonRT(None)
+            # 	time.sleep(0.01)
+            # 	continue
+
             # determine if we need to publish
-            
             cur_state = self.state_buffer.readFromRT()
             prev_plan = self.plan_buffer.readFromRT()
             if cur_state is None:
