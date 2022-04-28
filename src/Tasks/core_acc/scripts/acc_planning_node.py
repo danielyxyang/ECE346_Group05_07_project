@@ -1,7 +1,7 @@
 #!/usr/bin/env python
+import csv, yaml
 import numpy as np
 import matplotlib.pyplot as plt
-import csv, yaml
 
 import rospy
 from std_msgs.msg import String
@@ -29,22 +29,25 @@ class PoseSubscriber:
 
         # load parameters
         with open(params_file) as file:
-            params = yaml.load(file, Loader=yaml.FullLoader)
+            self.params = yaml.load(file, Loader=yaml.FullLoader)
         
-        # load track
-        x = []
-        y = []
+        self.T = self.params['T']
+        self.N = self.params['N']
+        self.replan_dt = self.T / (self.N - 1)
+        
+        # load track for plotting
+        x, y = [], []
         with open(track_file, newline='') as f:
             spamreader = csv.reader(f, delimiter=',')
             for i, row in enumerate(spamreader):
                 if i > 0:
                     x.append(float(row[0]))
                     y.append(float(row[1]))
-        self.track = Track(center_line=np.array([x, y]), width_left=params['track_width_L'], width_right=params['track_width_R'], loop=True)
+        self.track = Track(center_line=np.array([x, y]), width_left=self.params['track_width_L'], width_right=self.params['track_width_R'], loop=True)
 
         # initialize trajectory
         self.traj = Trajectory(max_list_size=1)
-        self.traj_host = Trajectory(max_list_size=MAX_LIST_SIZE)
+        self.traj_host = Trajectory(min_list_size=self.N, max_list_size=MAX_LIST_SIZE)
         self.last_t = None
 
         # create pose subscriber
@@ -53,20 +56,25 @@ class PoseSubscriber:
         rospy.loginfo("Subscribing to {}".format(pose_host_topic))
         self.sub_pose_host = rospy.Subscriber(pose_host_topic, Odometry, self.subscribe_pose_host, queue_size=1)
 
-        def _get_ref_traj():
-            return self.traj_host.get_trajectory()
+        def _get_ref_traj(n=None):
+            x, y, psi, v = self.traj_host.get_trajectory()
+            if n is not None:
+                return x[:n], y[:n], psi[:n], v[:n]
+            else:
+                return x, y, psi, v
         
-        self.cost = CostACC(params, _get_ref_traj)
-        self.planner = MPC(self.cost, params, pose_topic=pose_topic, control_topic=controller_topic)
+        self.cost = CostACC(self.params, _get_ref_traj)
+        self.planner = MPC(self.cost, self.params, pose_topic=pose_topic, control_topic=controller_topic)
 
     def subscribe_pose(self, poseMsg):
-        self.traj.add_point(poseMsg.pose.pose.position.x, poseMsg.pose.pose.position.y)
+        self.traj.add_odom_state(poseMsg)
 
     def subscribe_pose_host(self, odomMsg):
-        if self.last_t is not None and (odomMsg.header.stamp - self.last_t).to_sec() < 0.25:
+        if self.last_t is not None and (odomMsg.header.stamp - self.last_t).to_sec() < self.replan_dt:
             return
         
-        self.traj_host.add_point(odomMsg.pose.pose.position.x, odomMsg.pose.pose.position.y)
+        self.traj_host.add_odom_state(odomMsg)
+
         if self.traj.is_available():
             x, y, _, _ = self.traj.get_trajectory()
             self.traj_host.truncate_trajectory(x[0], y[0])
@@ -82,47 +90,20 @@ class PoseSubscriber:
             #   else:
             #     return
 
-            # while len(self.x_traj) > MAX_LIST_SIZE - 1:
-            #     self.x_traj.pop(0)
-            #     self.y_traj.pop(0)
-            
-            # self.x_traj.append(poseMsg.pose.pose.position.x)
-            # self.y_traj.append(poseMsg.pose.pose.position.y)
-            # ref_traj = np.array([self.x_traj, self.y_traj])
-        
-        # if ref_traj.shape[1] <= 1:
-        #     return
-        
-        # try:
-        #     self.ref_track = Track(center_line=ref_traj, loop=False)
-        #     if not self.ref_track_available:
-        #         rospy.loginfo("Trajectory constructed")
-        #         self.ref_track_available = True
-        #         self.planner.run()
-        # except:
-        #     if self.ref_track_available:
-        #         rospy.loginfo("Trajectory cannot be constructed")
-        #         self.ref_track_available = False
-        #         self.planner.stop()
-
     def plot_pose(self):
         self.track.plot_track()
         self.track.plot_track_center()
-        
-        x, y, x_mid, y_mid = self.traj_host.get_trajectory()
-        # plt.scatter(x_mid, y_mid, s=2, c="red")
-        plt.scatter(x, y, s=2, c="green")
-        plt.scatter(x[-1:], y[-1:], c="green", marker="*")
-        
-        plan = self.planner.plan_buffer.readFromRT()
-        plt.scatter(plan.nominal_x[0], plan.nominal_x[1], s=2, c="red")
-        
+
         x, y, _, _ = self.traj.get_trajectory()
         plt.scatter(x, y, c="orange", marker="*")
-
-
-        # t = self.cost.ref_traj_midpoints.T
-        # plt.scatter(t[0], t[1], s=2, c="red")
+        
+        x, y, _, _ = self.traj_host.get_trajectory()
+        plt.scatter(x[-1:], y[-1:], c="green", marker="*")
+        plt.scatter(x, y, s=2, c="green")
+        
+        plan = self.planner.plan_buffer.readFromRT()
+        if plan is not None:
+            plt.scatter(plan.nominal_x[0], plan.nominal_x[1], s=2, c="blue")
 
 
 if __name__ == '__main__':

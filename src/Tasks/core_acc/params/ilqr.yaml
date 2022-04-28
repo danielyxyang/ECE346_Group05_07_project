@@ -29,7 +29,7 @@ w_vel: 2
 w_contour: 30
 w_theta: 1
 w_accel: 1
-w_delta: 5
+w_delta: 1
 
 # parameters for barrier functions
 q1_v: 0

@@ -114,7 +114,7 @@ class MPC():
         self.control_pub.publish(control)
 
     def ilqr_pub_thread(self):
-        time.sleep(5)
+        time.sleep(10)
         rospy.loginfo("iLQR Planning publishing thread started")
         while not rospy.is_shutdown():
             # if self.stop_ilqr:

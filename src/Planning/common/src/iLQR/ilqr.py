@@ -74,7 +74,7 @@ class iLQR():
 
 	def solve(self, cur_state, controls=None, obs_list=[], record=False):
 		status = 0
-		self.lambad = 10
+		self.lambad = 0
 
 		time0 = time.time()
 
@@ -110,14 +110,14 @@ class iLQR():
 				status = 2
 				break
 			# self.lambad = min(max(self.lambad_min, self.lambad), self.lambad_max)
-			self.lambad = max(self.lambad_min, self.lambad)
+			# self.lambad = max(self.lambad_min, self.lambad)
 
 			if converged:
 				status = 1
 				break
 		t_process = time.time() - time0
 		# print("step, ", i, "alpha:", alpha)
-
+		print("iLQR solve: {:.6f}s, status: {}".format(t_process, status))
 		if record:
 			# get parameters for FRS
 			K_closed_loop, _ = self.backward_pass(states, controls)

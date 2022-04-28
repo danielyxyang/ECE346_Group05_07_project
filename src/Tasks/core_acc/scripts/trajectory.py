@@ -1,52 +1,84 @@
 import numpy as np
 from threading import Lock
+from scipy.spatial.transform import Rotation
+
+from MPC import State
 
 class Trajectory():
-    def __init__(self, max_list_size=200):
+    def __init__(self, min_list_size=0, max_list_size=200):
+        self.min_list_size = min_list_size
         self.max_list_size = max_list_size
-        self.x_traj = []
-        self.y_traj = []
 
-        self.x_traj_mid = []
-        self.y_traj_mid = []
+        # self.t = [0] * min_list_size
+        # self.x = [0] * min_list_size
+        # self.y = [0] * min_list_size
+        # self.psi = [0] * min_list_size
+        # self.v = [0] * min_list_size
+        
+        self.t = []
+        self.x = []
+        self.y = []
+        self.psi = []
+        self.v = []
+        # self.trajectory = [State(np.zeros(4), 0)] * min_list_size # TODO
 
         self.lock = Lock()
     
-    def add_point(self, x, y):
-        with self.lock:
-            while len(self.x_traj) > self.max_list_size - 1:
-                self.x_traj.pop(0)
-                self.y_traj.pop(0)
-                self.x_traj_mid.pop(0)
-                self.y_traj_mid.pop(0)
-            
-            self.x_traj.append(x)
-            self.y_traj.append(y)
-            
-            if len(self.x_traj) > 1:
-                self.x_traj_mid.append((self.x_traj[-1] + self.x_traj[-2]) / 2.0)
-                self.y_traj_mid.append((self.y_traj[-1] + self.y_traj[-2]) / 2.0)
-            else:
-                self.x_traj_mid.append(self.x_traj[-1])
-                self.y_traj_mid.append(self.y_traj[-1])
+    def add_odom_state(self, odom_msg):
+        # timestamp
+        t = odom_msg.header.stamp
 
-    
+        # position
+        x = odom_msg.pose.pose.position.x
+        y = odom_msg.pose.pose.position.y
+        
+        # pose
+        rot_vec = Rotation.from_quat([
+            odom_msg.pose.pose.orientation.x, odom_msg.pose.pose.orientation.y,
+            odom_msg.pose.pose.orientation.z, odom_msg.pose.pose.orientation.w,
+        ]).as_rotvec()
+        psi = rot_vec[2]
+
+        with self.lock:
+            # linear velocity
+            if len(self.x) > 0:
+                dx = x - self.x[-1]
+                dy = y - self.y[-1]
+                dt = (t - self.t[-1]).to_sec()
+                v = np.sqrt(dx * dx + dy * dy) / dt
+            else:
+                v = 0
+            
+            while len(self.x) > self.max_list_size - 1:
+                self.t.pop(0)
+                self.x.pop(0)
+                self.y.pop(0)
+                self.psi.pop(0)
+                self.v.pop(0)
+            
+            self.t.append(t)
+            self.x.append(x)
+            self.y.append(y)
+            self.psi.append(psi)
+            self.v.append(v)
+            
     def truncate_trajectory(self, x, y):
         with self.lock:
             cur_pos = np.array([x, y])
-            traj_mid = np.array([self.x_traj_mid, self.y_traj_mid]).T
-            midpoint_difference = traj_mid - cur_pos
-            midpoint_distances = np.sum(midpoint_difference ** 2, axis=1)
-            closest_midpoint = np.argmin(midpoint_distances)
-
-            self.x_traj = self.x_traj[closest_midpoint:]
-            self.y_traj = self.y_traj[closest_midpoint:]
-            self.x_traj_mid = self.x_traj_mid[closest_midpoint:]
-            self.y_traj_mid = self.y_traj_mid[closest_midpoint:]
+            trajectory = np.array([self.x, self.y]).T
+            
+            closest_state_index = np.argmin(np.sum((trajectory - cur_pos) ** 2, axis=1))
+            closest_state_index = min(closest_state_index, len(self.x) - self.min_list_size)
+            for _ in range(closest_state_index):
+                self.t.pop(0)
+                self.x.pop(0)
+                self.y.pop(0)
+                self.psi.pop(0)
+                self.v.pop(0)
     
     def get_trajectory(self):
         with self.lock:
-            return self.x_traj, self.y_traj, self.x_traj_mid, self.y_traj_mid
+            return self.x, self.y, self.psi, self.v
     
     def is_available(self):
-        return len(self.x_traj) > 0
+        return len(self.x) > 0

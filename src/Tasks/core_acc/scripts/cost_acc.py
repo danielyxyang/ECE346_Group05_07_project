@@ -40,12 +40,10 @@ class CostACC(Cost):
 		"""
 		Update soft constraints with list of FRS of dynamic obstacles (?)
 		"""
-		x_traj, y_traj, x_traj_mid, y_traj_mid = self.get_ref_traj()
-		self.ref_traj = np.array([x_traj, y_traj]).T
-		self.ref_traj_midpoints = np.array([x_traj_mid, y_traj_mid]).T
-		self.ref_traj_distances = np.cumsum(np.sum((self.ref_traj[1:] - self.ref_traj[:-1]) ** 2, axis=1)[::-1])[::-1]
-		self.ref_traj_distances = np.append(self.ref_traj_distances, 0)
-		print(self.ref_traj.shape, self.ref_traj_midpoints.shape, self.ref_traj_distances.shape)
+		x, y, psi, v = self.get_ref_traj(n=self.N)
+
+		self.ref_traj = np.array([x, y, psi, v])
+		
 		# if len(self.ref_traj) > 1:
 		# 	ref_traj_extended = np.concatenate((
 		# 		[self.ref_traj[0] - (self.ref_traj[1] - self.ref_traj[0])],
@@ -69,11 +67,11 @@ class CostACC(Cost):
 		Returns:
 			int: scalar cost
 		"""
-		if len(self.ref_traj_midpoints) == 0:
+		if len(self.ref_traj) == 0:
 			return 1 # avoid division by zero
 
 		# initialize total cost
-		J_vec = 0
+		J_vec = np.zeros(self.N)
 
 		# state regularizer
 		# error_vel = states[2] - self.v_max
@@ -81,19 +79,12 @@ class CostACC(Cost):
 		# J_vec += c_state
 		
 		# control regularizer
-		# c_control = np.einsum("an,ab,bn->n", controls, self.W_control, controls)
-		# J_vec += c_control
+		c_control = np.einsum("an,ab,bn->n", controls, self.W_control, controls)
+		J_vec += c_control
 		
-		# progress reward
-		closest_midpoint_distance = np.zeros(self.N)
-		for i in range(self.N):
-			midpoint_difference = self.ref_traj_midpoints - states[0:1, i]
-			midpoint_distances = np.sum(midpoint_difference ** 2, axis=1)
-			closest_midpoint = np.argmin(midpoint_distances)
-			closest_midpoint_distance[i] = midpoint_distances[closest_midpoint] + self.ref_traj_distances[closest_midpoint]
-		c_progress = self.w_theta * closest_midpoint_distance
-		print(c_progress)
-		J_vec += c_progress
+		# position penalty
+		c_state = np.sum((self.ref_traj[0:2] - states[0:2]) ** 2, axis=0)
+		J_vec += c_state
 
 		# total scalar cost
 		# J = np.sum(self.gammas * J_vec)
@@ -117,7 +108,7 @@ class CostACC(Cost):
 		c_uu = np.zeros(shape=(2, 2, self.N))
 		c_ux = np.zeros(shape=(2, 4, self.N))
 
-		if len(self.ref_traj_midpoints) == 0:
+		if len(self.ref_traj) == 0:
 			return c_x, c_xx, c_u, c_uu, c_ux
 
 		# state derivatives
@@ -125,17 +116,20 @@ class CostACC(Cost):
 		# c_x += np.array([self.zeros, self.zeros, self.w_vel * (2 * error_vel), self.zeros])
 
 		# control regularizer
-		# c_u += 2 * np.einsum("ab,bn->n", self.W_control, controls)
-		# c_uu += 2 * np.repeat(self.W_control[:, :, np.newaxis], self.N, axis=2)
+		c_u += 2 * np.einsum("ab,bn->n", self.W_control, controls)
+		c_uu += 2 * np.repeat(self.W_control[:, :, np.newaxis], self.N, axis=2)
 
 		# progress derivatives
-		closest_midpoint_difference = np.zeros(shape=(2, self.N))
-		for i in range(self.N):
-			midpoint_difference = self.ref_traj_midpoints - states[0:1, i]
-			midpoint_distances = np.sum(midpoint_difference ** 2, axis=1) * 100
-			closest_midpoint = np.argmin(midpoint_distances)
-			closest_midpoint_difference[:, i] = midpoint_difference[closest_midpoint]
-		c_x += np.concatenate((-2 * self.w_theta * closest_midpoint_difference, [self.zeros, self.zeros]))
+		c_x += np.concatenate([
+			-2 * (self.ref_traj[0:2] - states[0:2]),
+			[self.zeros, self.zeros],
+		])
+		c_xx += np.array([
+			[np.full(self.N, fill_value=2), self.zeros, self.zeros, self.zeros],
+			[self.zeros, np.full(self.N, fill_value=2), self.zeros, self.zeros],
+			[self.zeros, self.zeros, self.zeros, self.zeros],
+			[self.zeros, self.zeros, self.zeros, self.zeros],
+		])
 
 		return c_x, c_xx, c_u, c_uu, c_ux
 	
