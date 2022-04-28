@@ -117,7 +117,7 @@ class iLQR():
 				break
 		t_process = time.time() - time0
 		# print("step, ", i, "alpha:", alpha)
-		print("iLQR solve: {:.6f}s, status: {}".format(t_process, status))
+		# print("iLQR solve: {:.6f}s, status: {}".format(t_process, status))
 		if record:
 			# get parameters for FRS
 			K_closed_loop, _ = self.backward_pass(states, controls)

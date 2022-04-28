@@ -49,6 +49,7 @@ class PoseSubscriber:
         self.traj = Trajectory(max_list_size=1)
         self.traj_host = Trajectory(min_list_size=self.N, max_list_size=MAX_LIST_SIZE)
         self.last_t = None
+        self.last_xy = None
 
         # create pose subscriber
         rospy.loginfo("Subscribing to {}".format(pose_topic))
@@ -57,7 +58,7 @@ class PoseSubscriber:
         self.sub_pose_host = rospy.Subscriber(pose_host_topic, Odometry, self.subscribe_pose_host, queue_size=1)
 
         def _get_ref_traj(n=None):
-            x, y, psi, v = self.traj_host.get_trajectory()
+            x, y, psi, v = self.traj_host.get_reference_trajectory(min=self.N, d=0.2)
             if n is not None:
                 return x[:n], y[:n], psi[:n], v[:n]
             else:
@@ -70,16 +71,29 @@ class PoseSubscriber:
         self.traj.add_odom_state(poseMsg)
 
     def subscribe_pose_host(self, odomMsg):
-        if self.last_t is not None and (odomMsg.header.stamp - self.last_t).to_sec() < self.replan_dt:
-            return
-        
-        self.traj_host.add_odom_state(odomMsg)
-
         if self.traj.is_available():
             x, y, _, _ = self.traj.get_trajectory()
             self.traj_host.truncate_trajectory(x[0], y[0])
         
+        # record state uniformly over time
+        if self.last_t is not None and (odomMsg.header.stamp - self.last_t).to_sec() < 0.01:
+            return
+        
+        if self.last_xy is not None:
+            dx = self.last_xy[0] - odomMsg.pose.pose.position.x
+            dy = self.last_xy[1] - odomMsg.pose.pose.position.y
+            distance = np.sqrt(dx ** 2 + dy ** 2)
+            if distance < 0.05:
+                return
+        
+        self.traj_host.add_odom_state(odomMsg)
+        self.last_xy = [
+            odomMsg.pose.pose.position.x,
+            odomMsg.pose.pose.position.y,
+        ]
         self.last_t = odomMsg.header.stamp
+
+        
         # with self.lock_host:
             # if not self.traj_init:
             #   if self.current_pos:
@@ -100,6 +114,8 @@ class PoseSubscriber:
         x, y, _, _ = self.traj_host.get_trajectory()
         plt.scatter(x[-1:], y[-1:], c="green", marker="*")
         plt.scatter(x, y, s=2, c="green")
+        x, y, _, _ = self.traj_host.get_reference_trajectory(min=11, d=0.2)
+        plt.scatter(x, y, s=2, c="red")
         
         plan = self.planner.plan_buffer.readFromRT()
         if plan is not None:
