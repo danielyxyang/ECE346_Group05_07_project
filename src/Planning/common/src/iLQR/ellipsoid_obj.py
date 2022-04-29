@@ -8,10 +8,10 @@ from .ellipsoid import Ellipsoid
 class EllipsoidObj():
 
     def __init__(
-            self, ellipsoid: Optional[Ellipsoid] = None,
-            q: np.ndarray = np.array([]), Q: np.ndarray = np.array([[], []]),
-            r=None, n_circ = None, center_L = None, major_axis = None,
-            auto_sym: bool = True, psd_tol: float = 1e-15,
+        self, ellipsoid: Optional[Ellipsoid] = None,
+        q: np.ndarray = np.array([]), Q: np.ndarray = np.array([[], []]),
+        r=None, n_circ = None, center_L = None, major_axis = None,
+        auto_sym: bool = True, psd_tol: float = 1e-15,
     ):
         """
         Approximate Ellipsoid object with `n_circ` many circles for faster computations

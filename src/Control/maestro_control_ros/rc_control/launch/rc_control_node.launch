@@ -4,10 +4,11 @@
     <arg name="ThrottleChannel"   default="1"    doc="Controller Channel of ESC"/>
     <arg name="ControllerTopic"   default="/control/rc_control"    doc="ROS topic to subscribe"/>
     <arg name="frequency"         default="50"              doc="Frequency to update the controller" />
+    <arg name="NameSpace"         default="nxX" doc="name space of the ros nodes"/>
     <node pkg="rc_control" type="rc_control_node" name="rc_control_node" output="$(arg output)" args="" required="true">
         <param name="SteeringChannel"           value="$(arg SteeringChannel)" />
         <param name="ThrottleChannel"           value="$(arg ThrottleChannel)" />
-        <param name="ControllerTopic"           value="$(arg ControllerTopic)" />
+        <param name="ControllerTopic"           value="/$(arg NameSpace)$(arg ControllerTopic)" />
         <param name="frequency"                 value="$(arg frequency)" />
     </node>
 </launch>

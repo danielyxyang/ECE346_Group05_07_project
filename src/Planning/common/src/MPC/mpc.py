@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
+import numpy as np
+import time
 import threading
 from threading import Lock
-import time
-import numpy as np
 from scipy.spatial.transform import Rotation
 
 import rospy
@@ -42,34 +42,28 @@ class MPC():
 
         # set up publiser to the reference trajectory and subscriber to the pose
         self.control_pub = rospy.Publisher(control_topic, RCControl, queue_size=1)
-
-        self.pose_sub = rospy.Subscriber(pose_topic, Odometry,self.odom_sub_callback, queue_size=1)
+        self.pose_sub = rospy.Subscriber(pose_topic, Odometry, self.odom_sub_callback, queue_size=1)
     
         # start planning thread
-        threading.Thread(target=self.ilqr_pub_thread).start()
-
+        self.thread_ilqr = threading.Thread(target=self.ilqr_pub_thread).start()
+        
     def odom_sub_callback(self, odomMsg):
         """
         Subscriber callback function of the robot pose
         """
         cur_t = odomMsg.header.stamp
-        # postion
+
+        # position
         x = odomMsg.pose.pose.position.x
         y = odomMsg.pose.pose.position.y
-
         # pose
-        r = Rotation.from_quat([
+        rot_vec = Rotation.from_quat([
             odomMsg.pose.pose.orientation.x, odomMsg.pose.pose.orientation.y,
             odomMsg.pose.pose.orientation.z, odomMsg.pose.pose.orientation.w
-        ])
-
-        rot_vec = r.as_rotvec()
+        ]).as_rotvec()
         psi = rot_vec[2]
-        
-        # get previous state
-        prev_state = self.state_buffer.readFromRT()
-
         # linear velocity
+        prev_state = self.state_buffer.readFromRT() # get previous state
         if prev_state is not None:
             dx = x - prev_state.state[0]
             dy = y - prev_state.state[1]
@@ -77,13 +71,15 @@ class MPC():
             v = np.sqrt(dx * dx + dy * dy) / dt
         else:
             v = 0
+        # set current state
         cur_X = np.array([x, y, v, psi])
+
         # obtain the latest plan
         last_plan = self.plan_buffer.readFromRT()
         if last_plan is not None:
             # get the control policy
             X_k, u_k, K_k = last_plan.get_policy(cur_t)
-            u = u_k+ K_k@(cur_X - X_k)           
+            u = u_k + K_k @ (cur_X - X_k)           
             self.publish_control(v, u, cur_t)
         
         # write the new pose to the buffer
@@ -95,12 +91,12 @@ class MPC():
         a = u[0]
         delta = -u[1]
         
-        if a<0:
-            d = a/10-0.5
+        if a < 0:
+            d = a / 10 - 0.5
         else:
             temp = np.array([v**3, v**2, v, a**3, a**2, a, v**2*a, v*a**2, v*a, 1])
-            d = temp@self.d_open_loop
-            d = d+min(delta*delta*0.5,0.05)
+            d = temp @ self.d_open_loop
+            d = d + min(delta * delta * 0.5, 0.05)
         
         control.throttle = np.clip(d, -1.0, 1.0)
         control.steer = np.clip(delta/0.3, -1.0, 1.0)
@@ -112,7 +108,6 @@ class MPC():
         rospy.loginfo("iLQR Planning publishing thread started")
         while not rospy.is_shutdown():
             # determine if we need to publish
-            
             cur_state = self.state_buffer.readFromRT()
             prev_plan = self.plan_buffer.readFromRT()
             if cur_state is None:
@@ -134,8 +129,6 @@ class MPC():
                 # static_obs_list = [static_obs for _ in range(self.N)]
                 
                 sol_x, sol_u, _, _, sol_K, _, _ = self.ocp_solver.solve(cur_state.state, u_init, record=True, obs_list=[])
-                # print(np.round(sol_x,2))
-                # print(np.round(sol_u[1,:],2))
                 cur_plan = Plan(sol_x, sol_u, sol_K, cur_state.t, self.replan_dt, self.N)
                 self.plan_buffer.writeFromNonRT(cur_plan)
 
@@ -156,7 +149,7 @@ class Plan():
     
     def get_policy(self, t):
         k = int(np.floor((t-self.t0).to_sec()/self.dt))
-        if k>= self.N:
+        if k>= self.N-1:
             rospy.logwarn("Try to retrive policy beyond horizon")
             x_k = self.nominal_x[:,-1]
             x_k[2:] = 0

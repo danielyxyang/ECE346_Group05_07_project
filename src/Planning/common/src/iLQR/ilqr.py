@@ -86,7 +86,7 @@ class iLQR():
         for i in range(1, self.N):
             states[:,i], _ = self.dynamics.forward_step(states[:, i - 1], controls[:, i - 1])
 
-        self.cost.update_obs(obs_list)
+        self.cost.init_cost(obs_list)
 
         J = self.cost.get_cost(states, controls)
 

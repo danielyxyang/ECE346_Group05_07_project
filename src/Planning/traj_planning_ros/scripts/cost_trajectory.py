@@ -34,7 +34,7 @@ class CostTrajectory(Cost):
         self.ones = np.ones((self.N))
 
     #* New stuff.
-    def update_obs(self, frs_list):
+    def init_cost(self, frs_list):
         self.soft_constraints.update_obs(frs_list)
 
     def get_cost(self, states, controls):
@@ -121,7 +121,8 @@ class CostTrajectory(Cost):
         """
         transform = np.array([
             [np.sin(slope), -np.cos(slope), self.zeros, self.zeros],
-            [self.zeros, self.zeros, self.ones, self.zeros]])
+            [self.zeros, self.zeros, self.ones, self.zeros],
+        ])
         ref_states = np.zeros_like(states)
         ref_states[0, :] = closest_pt[0, :]+np.sin(slope) * self.track_offset
         ref_states[1, :] = closest_pt[1, :]-np.cos(slope) * self.track_offset

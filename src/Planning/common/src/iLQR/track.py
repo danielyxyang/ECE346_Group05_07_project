@@ -11,7 +11,7 @@ class Track:
 
         Args:
             center_line: 2D numpy array containing samples of track center line
-                            [[x1,x2,...], [y1,y2,...]]
+                [[x1,x2,...], [y1,y2,...]]
             width_left: float, width of the track on the left side
             width_right: float, width of the track on the right side
             loop: Boolean. If the track has loop
