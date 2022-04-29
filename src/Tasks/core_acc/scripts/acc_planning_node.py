@@ -12,9 +12,6 @@ from MPC import MPC
 from cost_acc import CostACC
 from trajectory import Trajectory
 
-
-MAX_LIST_SIZE = 100
-
 class PoseSubscriber:
     def __init__(self):
         rospy.init_node('acc_planning_node')
@@ -22,8 +19,8 @@ class PoseSubscriber:
 
         # read arguments
         controller_topic = rospy.get_param("~ControllerTopic")
-        pose_topic = rospy.get_param("~PoseTopic")
-        pose_host_topic = rospy.get_param("~PoseHostTopic")
+        odom_topic = rospy.get_param("~PoseTopic")
+        odom_host_topic = rospy.get_param("~PoseHostTopic")
         params_file = rospy.get_param("~PlanParamsFile")
         track_file = rospy.get_param("~TrackFile")
 
@@ -34,6 +31,13 @@ class PoseSubscriber:
         self.T = self.params['T']
         self.N = self.params['N']
         self.replan_dt = self.T / (self.N - 1)
+
+        self.max_rate_time = 0.01
+        self.max_rate_space = 0.05
+
+        self.v_max = self.params['v_max']
+        self.v_min = self.params['v_min']
+        self.safety_distance = self.params['safety_distance']
         
         # load track for plotting
         x, y = [], []
@@ -47,80 +51,89 @@ class PoseSubscriber:
 
         # initialize trajectory
         self.traj = Trajectory(max_list_size=1)
-        self.traj_host = Trajectory(min_list_size=self.N, max_list_size=MAX_LIST_SIZE)
-        self.last_t = None
-        self.last_xy = None
+        self.traj_host = Trajectory(max_list_size=100)
 
         # create pose subscriber
-        rospy.loginfo("Subscribing to {}".format(pose_topic))
-        self.sub_pose = rospy.Subscriber(pose_topic, Odometry, self.subscribe_pose, queue_size=1)
-        rospy.loginfo("Subscribing to {}".format(pose_host_topic))
-        self.sub_pose_host = rospy.Subscriber(pose_host_topic, Odometry, self.subscribe_pose_host, queue_size=1)
+        rospy.loginfo("Subscribing to {}".format(odom_topic))
+        self.sub_odom = rospy.Subscriber(odom_topic, Odometry, self.subscribe_odom, queue_size=1)
+        rospy.loginfo("Subscribing to {}".format(odom_host_topic))
+        self.sub_odom_host = rospy.Subscriber(odom_host_topic, Odometry, self.subscribe_odom_host, queue_size=1)
 
         def _get_ref_traj(n=None):
-            x, y, psi, v = self.traj_host.get_reference_trajectory(min=self.N, d=0.2)
+            ref_trajectory = self.traj_host.get_reference_trajectory(min_size=n)
             if n is not None:
-                return x[:n], y[:n], psi[:n], v[:n]
+                return ref_trajectory[:, :n]
             else:
-                return x, y, psi, v
+                return ref_trajectory
         
         self.cost = CostACC(self.params, _get_ref_traj)
-        self.planner = MPC(self.cost, self.params, pose_topic=pose_topic, control_topic=controller_topic)
+        self.planner = MPC(self.cost, self.params, pose_topic=odom_topic, control_topic=controller_topic)
 
-    def subscribe_pose(self, poseMsg):
-        self.traj.add_odom_state(poseMsg)
+    def subscribe_odom(self, odom_msg):
+        self.traj.add_odom_state(odom_msg)
+        self.traj_host.truncate_trajectory(odom_msg.pose.pose.position.x, odom_msg.pose.pose.position.y)
 
-    def subscribe_pose_host(self, odomMsg):
-        if self.traj.is_available():
-            x, y, _, _ = self.traj.get_trajectory()
-            self.traj_host.truncate_trajectory(x[0], y[0])
-        
-        # record state uniformly over time
-        if self.last_t is not None and (odomMsg.header.stamp - self.last_t).to_sec() < 0.01:
+    def subscribe_odom_host(self, odom_msg):
+        current_t = odom_msg.header.stamp
+        current_p = np.array([odom_msg.pose.pose.position.x, odom_msg.pose.pose.position.y])
+        if self.traj_host.size() > 0:
+            state = self.traj_host.get_trajectory()[-1]
+            last_t = state.t
+            last_p = state.state[0:2]
+        else:
+            last_t = None
+            last_p = None
+
+        # limiting sampling rate over time
+        if last_t is not None and (current_t - last_t).to_sec() < self.max_rate_time:
+            return
+        # limiting sampling rate over space
+        if last_p is not None and np.linalg.norm(current_p - last_p) < self.max_rate_space:
             return
         
-        if self.last_xy is not None:
-            dx = self.last_xy[0] - odomMsg.pose.pose.position.x
-            dy = self.last_xy[1] - odomMsg.pose.pose.position.y
-            distance = np.sqrt(dx ** 2 + dy ** 2)
-            if distance < 0.05:
-                return
+        # add state to trajectory
+        self.traj_host.add_odom_state(odom_msg)
         
-        self.traj_host.add_odom_state(odomMsg)
-        self.last_xy = [
-            odomMsg.pose.pose.position.x,
-            odomMsg.pose.pose.position.y,
-        ]
-        self.last_t = odomMsg.header.stamp
+        # set reference velocity
+        if self.traj.size() > 0:
+            # compute distance to host
+            state = self.traj.get_trajectory()[-1]
+            state_host = self.traj_host.get_trajectory()[-1]
+            distance_to_host = np.linalg.norm(state_host.state[0:2] - state.state[0:2]) + self.traj_host.length()
+            
+            distance_diff = distance_to_host - self.safety_distance
+            if distance_diff >= 0:
+                # increase speed
+                target_velocity = min(state_host.state[2] + 0.1 * distance_diff, 1.5 * self.v_max)
+            else:
+                # reduce speed
+                target_velocity = max(state_host.state[2] - distance_diff, self.v_min)
+            self.traj_host.set_reference_velocity(target_velocity, self.replan_dt)
 
-        
-        # with self.lock_host:
-            # if not self.traj_init:
-            #   if self.current_pos:
-            #     self.x_traj = list(np.linspace(self.x, poseMsg.pose.position.x, MAX_LIST_SIZE))
-            #     self.y_traj = list(np.linspace(self.y, poseMsg.pose.position.y, MAX_LIST_SIZE))
-            #     self.traj_init = True
-            #     rospy.loginfo("Trajectory initialized")
-            #   else:
-            #     return
+            print("host_velocity: {:.6f}, target_velocity: {:.6f}, distance_diff: {:.6f}, d: {:.6f}".format(state_host.state[2], target_velocity, distance_diff, target_velocity * self.replan_dt))
 
     def plot_pose(self):
+        # plot outer loop of track
         self.track.plot_track()
         self.track.plot_track_center()
 
-        x, y, _, _ = self.traj.get_trajectory()
-        plt.scatter(x, y, c="orange", marker="*")
+        # plot current position of back car
+        if self.traj.size() > 0:
+            last_state = self.traj.get_trajectory()[-1]
+            plt.scatter([last_state.state[0]], [last_state.state[1]], c="orange", marker="*")
+        # plot current position of front car
+        if self.traj_host.size() > 0:
+            last_state = self.traj_host.get_trajectory()[-1]
+            plt.scatter([last_state.state[0]], [last_state.state[1]], c="green", marker="*")
         
-        x, y, _, _ = self.traj_host.get_trajectory()
-        plt.scatter(x[-1:], y[-1:], c="green", marker="*")
-        plt.scatter(x, y, s=2, c="green")
-        x, y, _, _ = self.traj_host.get_reference_trajectory(min=11, d=0.2)
-        plt.scatter(x, y, s=2, c="red")
-        
+        # plot reference trajectory of front car
+        states = self.traj_host.get_reference_trajectory(min_size=self.N)
+        plt.scatter(states[0], states[1], s=2, c="green")
+        # plot iLQR trajectory of back car
         plan = self.planner.plan_buffer.readFromRT()
         if plan is not None:
             plt.scatter(plan.nominal_x[0], plan.nominal_x[1], s=2, c="blue")
-
+        
 
 if __name__ == '__main__':
     listener = PoseSubscriber()

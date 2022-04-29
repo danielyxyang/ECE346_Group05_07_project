@@ -22,24 +22,11 @@ alat_max: 5.0
 track_file: 'outerloop_center_smooth.csv'
 track_width_R: 0.3
 track_width_L: 0.3
-track_offset: 0.15
 
 # cost
-w_vel: 2
-w_contour: 30
-w_theta: 1
+safety_distance: 1
 w_accel: 1
 w_delta: 1
-
-# parameters for barrier functions
-q1_v: 0
-q2_v: 0
-q1_road: 5
-q2_road: 5
-q1_lat: 1
-q2_lat: 5
-q1_obs: 0
-q2_obs: 0
 
 # ilqr parameters
 T: 2
