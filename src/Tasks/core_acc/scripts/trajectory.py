@@ -97,18 +97,19 @@ class Trajectory():
 
         # obtain trajectory with points uniformly spaced with distance self.ref_d
         ref_trajectory = [trajectory[0].state]
-        distance = 0
         last_state = trajectory[0]
+        last_distance = 0
         for state in trajectory[1:]:
             difference = state.state - last_state.state
-            distance += np.linalg.norm(difference[0:2])
+            distance = np.linalg.norm(difference[0:2])
             
-            for i in range(int(distance / self.ref_d)):
-                alpha = (i+1) * self.ref_d / distance
-                ref_state = last_state.state + alpha * difference
+            num_ref_points = int((last_distance + distance) / self.ref_d)
+            for i in range(1, num_ref_points + 1):
+                alpha = (i * self.ref_d - last_distance) / distance
+                ref_state = (1 - alpha) * last_state.state + alpha * state.state
                 ref_trajectory.append(ref_state)
-                distance = distance - self.ref_d
             last_state = state
+            last_distance = last_distance + distance - num_ref_points * self.ref_d
         
         # fill reference trajectory with latest 
         while len(ref_trajectory) < min_size:

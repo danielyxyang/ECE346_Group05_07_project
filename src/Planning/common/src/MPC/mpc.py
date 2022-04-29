@@ -128,7 +128,8 @@ class MPC():
                 # static_obs = EllipsoidObj(q=ego_q, Q=ego_Q)
                 # static_obs_list = [static_obs for _ in range(self.N)]
                 
-                sol_x, sol_u, _, _, sol_K, _, _ = self.ocp_solver.solve(cur_state.state, u_init, record=True, obs_list=[])
+                sol_x, sol_u, _, status, sol_K, _, _ = self.ocp_solver.solve(cur_state.state, u_init, record=True, obs_list=[])
+                # if status == 1:
                 cur_plan = Plan(sol_x, sol_u, sol_K, cur_state.t, self.replan_dt, self.N)
                 self.plan_buffer.writeFromNonRT(cur_plan)
 

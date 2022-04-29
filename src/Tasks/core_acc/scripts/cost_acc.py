@@ -17,14 +17,19 @@ class CostACC(Cost):
         self.v_max = params['v_max']  # max velocity
 
         # cost
+        self.w_ref_traj = params['w_ref_traj']
+        self.w_ref_orientation = params['w_ref_orientation']
+
         self.w_accel = params['w_accel']
         self.w_delta = params['w_delta']
+        self.w_vel = params['w_vel']
         self.W_control = np.array([[self.w_accel, 0], [0, self.w_delta]])
 
         # useful constants
         self.zeros = np.zeros((self.N))
         self.ones = np.ones((self.N))
         self.gammas = np.cumprod(np.full((self.N), fill_value=self.gamma))
+        self.gammas_inv = np.cumprod(np.full((self.N), fill_value=self.gamma))[::-1]
     
     #* New stuff.
     def init_cost(self, frs_list):
@@ -48,13 +53,16 @@ class CostACC(Cost):
         J_vec = np.zeros(self.N)
 
         # position penalty
-        c_state = np.sum((self.ref_traj[0:2] - states[0:2]) ** 2, axis=0)
-        J_vec += c_state
+        c_ref_traj = self.w_ref_traj * np.sum((self.ref_traj[0:2] - states[0:2]) ** 2, axis=0)
+        J_vec += c_ref_traj
 
-        # state regularizer
-        # error_vel = states[2] - self.v_max
-        # c_state = self.w_vel * (error_vel ** 2)
-        # J_vec += c_state
+        # orientation penalty
+        c_ref_orientation = self.w_ref_orientation * self.gammas_inv * (self.ref_traj[3] - states[3]) ** 2
+        J_vec += c_ref_orientation
+
+        # velocity penalty
+        c_state = self.w_vel * (self.ref_traj[2] - states[2]) ** 2
+        J_vec += c_state
         
         # control regularizer
         c_control = np.einsum("an,ab,bn->n", controls, self.W_control, controls)
@@ -85,27 +93,45 @@ class CostACC(Cost):
         if len(self.ref_traj) == 0:
             return c_x, c_xx, c_u, c_uu, c_ux
 
-        # progress derivatives
-        c_x += np.concatenate([
+        # position penalty derivatives
+        c_x += self.w_ref_traj * np.concatenate([
             -2 * (self.ref_traj[0:2] - states[0:2]),
             [self.zeros, self.zeros],
         ])
-        # c_xx += np.repeat(np.array([
-        #     [2, 0, 0, 0],
-        #     [0, 2, 0, 0],
-        #     [0, 0, 0, 0],
-        #     [0, 0, 0, 0],
-        # ])[:, :, np.newaxis], self.N, axis=2)
-        c_xx += np.array([
-            [np.full(self.N, fill_value=2), self.zeros, self.zeros, self.zeros],
-            [self.zeros, np.full(self.N, fill_value=2), self.zeros, self.zeros],
+        c_xx += self.w_ref_traj * np.repeat(np.array([
+            [2, 0, 0, 0],
+            [0, 2, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ])[:, :, np.newaxis], self.N, axis=2)
+
+        # orientation penalty derivatives
+        c_x += self.w_ref_orientation * np.array([
+            self.zeros,
+            self.zeros,
+            self.zeros,
+            -2 * self.gammas_inv * (self.ref_traj[3] - states[3]),
+        ])
+        c_xx += self.w_ref_orientation * np.array([
             [self.zeros, self.zeros, self.zeros, self.zeros],
+            [self.zeros, self.zeros, self.zeros, self.zeros],
+            [self.zeros, self.zeros, self.zeros, self.zeros],
+            [self.zeros, self.zeros, self.zeros, 2 * self.gammas_inv],
+        ])
+        
+        # velocity penalty derivatives
+        c_x += self.w_vel * np.array([
+            self.zeros,
+            self.zeros,
+            -2 * (self.ref_traj[2] - states[2]),
+            self.zeros,
+        ])
+        c_xx += self.w_vel * np.array([
+            [self.zeros, self.zeros, self.zeros, self.zeros],
+            [self.zeros, self.zeros, self.zeros, self.zeros],
+            [self.zeros, self.zeros, np.full(self.N, fill_value=2), self.zeros],
             [self.zeros, self.zeros, self.zeros, self.zeros],
         ])
-
-        # state derivatives
-        # error_vel = states[2] - self.v_max
-        # c_x += np.array([self.zeros, self.zeros, self.w_vel * (2 * error_vel), self.zeros])
 
         # control regularizer
         c_u += 2 * np.einsum("ab,bn->n", self.W_control, controls)
