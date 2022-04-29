@@ -45,18 +45,8 @@ class MPC():
         self.pose_sub = rospy.Subscriber(pose_topic, Odometry, self.odom_sub_callback, queue_size=1)
     
         # start planning thread
-        # self.stop_ilqr = True
         self.thread_ilqr = threading.Thread(target=self.ilqr_pub_thread).start()
         
-    # def run(self):
-    # 	self.stop_ilqr = False
-    # 	# self.thread_ilqr.start()
-        
-    # def stop(self):
-    # 	self.stop_ilqr = True
-    # 	# self.thread_ilqr.join()
-
-
     def odom_sub_callback(self, odomMsg):
         """
         Subscriber callback function of the robot pose
@@ -117,12 +107,6 @@ class MPC():
         time.sleep(10)
         rospy.loginfo("iLQR Planning publishing thread started")
         while not rospy.is_shutdown():
-            # if self.stop_ilqr:
-            # 	# self.plan_buffer = RealtimeBuffer()
-            # 	self.plan_buffer.writeFromNonRT(None)
-            # 	time.sleep(0.01)
-            # 	continue
-
             # determine if we need to publish
             cur_state = self.state_buffer.readFromRT()
             prev_plan = self.plan_buffer.readFromRT()
@@ -165,7 +149,7 @@ class Plan():
     
     def get_policy(self, t):
         k = int(np.floor((t-self.t0).to_sec()/self.dt))
-        if k>= self.N:
+        if k>= self.N-1:
             rospy.logwarn("Try to retrive policy beyond horizon")
             x_k = self.nominal_x[:,-1]
             x_k[2:] = 0

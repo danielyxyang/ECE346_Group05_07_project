@@ -4,7 +4,7 @@ length: 0.5
 
 # box constraints
 # velocity
-v_max: 1 # max long vel [m/s]
+v_max: 1.5 # max long vel [m/s]
 v_min: 0 #0.05 # min long vel [m/s]
 
 # steering
@@ -26,12 +26,12 @@ track_width_L: 0.3
 # cost
 safety_distance: 1
 w_accel: 1
-w_delta: 1
+w_delta: 0.25
 
 # ilqr parameters
 T: 2
 N: 11  # the number of planning steps
-max_itr: 50
+max_itr: 100
 # replan_dt: 0.1
 
 d_open_loop: [-0.0146, 0.0874, -0.0507, 0.0005, -0.0332, 0.1869, 0.0095, 0.0170, -0.0583, 0.0388]

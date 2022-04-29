@@ -90,12 +90,18 @@ class CostACC(Cost):
             -2 * (self.ref_traj[0:2] - states[0:2]),
             [self.zeros, self.zeros],
         ])
-        c_xx += np.repeat(np.array([
-            [2, 0, 0, 0],
-            [0, 2, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-        ])[:, :, np.newaxis], self.N, axis=2)
+        # c_xx += np.repeat(np.array([
+        #     [2, 0, 0, 0],
+        #     [0, 2, 0, 0],
+        #     [0, 0, 0, 0],
+        #     [0, 0, 0, 0],
+        # ])[:, :, np.newaxis], self.N, axis=2)
+        c_xx += np.array([
+            [np.full(self.N, fill_value=2), self.zeros, self.zeros, self.zeros],
+            [self.zeros, np.full(self.N, fill_value=2), self.zeros, self.zeros],
+            [self.zeros, self.zeros, self.zeros, self.zeros],
+            [self.zeros, self.zeros, self.zeros, self.zeros],
+        ])
 
         # state derivatives
         # error_vel = states[2] - self.v_max

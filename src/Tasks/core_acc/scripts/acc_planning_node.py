@@ -60,7 +60,11 @@ class PoseSubscriber:
         self.sub_odom_host = rospy.Subscriber(odom_host_topic, Odometry, self.subscribe_odom_host, queue_size=1)
 
         def _get_ref_traj(n=None):
-            ref_trajectory = self.traj_host.get_reference_trajectory(min_size=n)
+            if self.traj.size() > 0:
+                prefix = [self.traj.get_trajectory()[-1]]
+            else:
+                prefix = []
+            ref_trajectory = self.traj_host.get_reference_trajectory(min_size=n, prefix=prefix)
             if n is not None:
                 return ref_trajectory[:, :n]
             else:
@@ -70,8 +74,26 @@ class PoseSubscriber:
         self.planner = MPC(self.cost, self.params, pose_topic=odom_topic, control_topic=controller_topic)
 
     def subscribe_odom(self, odom_msg):
+        current_t = odom_msg.header.stamp
+        if self.traj.size() > 0:
+            state = self.traj.get_trajectory()[-1]
+            last_t = state.t
+        else:
+            last_t = None
+        
+        # limiting sampling rate over time
+        if last_t is not None and (current_t - last_t).to_sec() < self.max_rate_time:
+            return
+        
+        # add state to trajectory
         self.traj.add_odom_state(odom_msg)
+        # self.traj_host.update_odom_state(odom_msg, 0)
+
+        # truncate host trajectory up to current position
         self.traj_host.truncate_trajectory(odom_msg.pose.pose.position.x, odom_msg.pose.pose.position.y)
+
+        # set reference velocity
+        self.update_reference_velocity()
 
     def subscribe_odom_host(self, odom_msg):
         current_t = odom_msg.header.stamp
@@ -95,22 +117,25 @@ class PoseSubscriber:
         self.traj_host.add_odom_state(odom_msg)
         
         # set reference velocity
-        if self.traj.size() > 0:
+        self.update_reference_velocity()
+
+    def update_reference_velocity(self):
+        if self.traj.size() > 0 and self.traj_host.size() > 0:
             # compute distance to host
             state = self.traj.get_trajectory()[-1]
             state_host = self.traj_host.get_trajectory()[-1]
-            distance_to_host = np.linalg.norm(state_host.state[0:2] - state.state[0:2]) + self.traj_host.length()
+            distance_to_host = np.linalg.norm(state_host.state[0:2] - state.state[0:2]) + self.traj_host.length() # TODO
             
             distance_diff = distance_to_host - self.safety_distance
             if distance_diff >= 0:
-                # increase speed
-                target_velocity = min(state_host.state[2] + 0.1 * distance_diff, 1.5 * self.v_max)
+                target_velocity = state_host.state[2] + distance_diff # increase speed
             else:
-                # reduce speed
-                target_velocity = max(state_host.state[2] - distance_diff, self.v_min)
+                target_velocity = state_host.state[2] + distance_diff # reduce speed
+            target_velocity = np.clip(target_velocity, self.v_min, self.v_max)
             self.traj_host.set_reference_velocity(target_velocity, self.replan_dt)
 
             print("host_velocity: {:.6f}, target_velocity: {:.6f}, distance_diff: {:.6f}, d: {:.6f}".format(state_host.state[2], target_velocity, distance_diff, target_velocity * self.replan_dt))
+
 
     def plot_pose(self):
         # plot outer loop of track
@@ -127,7 +152,11 @@ class PoseSubscriber:
             plt.scatter([last_state.state[0]], [last_state.state[1]], c="green", marker="*")
         
         # plot reference trajectory of front car
-        states = self.traj_host.get_reference_trajectory(min_size=self.N)
+        if self.traj.size() > 0:
+            prefix = [self.traj.get_trajectory()[-1]]
+        else:
+            prefix = []
+        states = self.traj_host.get_reference_trajectory(min_size=self.N, prefix=prefix)
         plt.scatter(states[0], states[1], s=2, c="green")
         # plot iLQR trajectory of back car
         plan = self.planner.plan_buffer.readFromRT()
