@@ -12,7 +12,11 @@ class Trajectory():
 
         self.trajectory = []
 
-        self.ref_d = 0.2 # spatial separation between reference trajectory points
+        self.ref_v = 1 # spatial separation between reference trajectory points (of host car)
+        self.cur_v = 1 # spatial separation between reference trajectory points (of this car)
+        self.dt = 0.2
+
+        self.min_v_threshold = 0.1
     
     def _odom_to_state(self, odom_msg, prev_index=-1):
         with self.lock:
@@ -83,7 +87,7 @@ class Trajectory():
     def get_trajectory_np(self):
         return np.array([state.state for state in self.get_trajectory()]).T
 
-    def get_reference_trajectory(self, min_size=1, prefix=[]):
+    def get_reference_trajectory(self, min_size=1, ref_accel=1, prefix=[]):
         """
         Returns:
             ref_trajectory: (4, N) array with (x, y, v, psi) states and N >= min_size
@@ -92,33 +96,52 @@ class Trajectory():
         
         # TODO if empty
 
-        if self.ref_d < 0.01: # avoiding infinite loop
+        if self.ref_v < self.min_v_threshold: # avoiding infinite loop
             return np.repeat([trajectory[0].state], min_size, axis=0).T
+        
+        # set velocity according to acceleration
+        dv = ref_accel * self.dt
+        if self.cur_v < self.ref_v:
+            v = np.arange(self.cur_v, self.ref_v, dv)
+        else:
+            v = np.arange(self.cur_v, self.ref_v, -dv)
+        
+        # define getter function for distance between reference points
+        def ref_d(index):
+            if index < len(v):
+                return v[index] * self.dt
+            else:
+                return self.ref_v * self.dt
 
-        # obtain trajectory with points uniformly spaced with distance self.ref_d
+        # obtain trajectory with points spaced according to ref_d(index)
         ref_trajectory = [trajectory[0].state]
         last_state = trajectory[0]
-        last_distance = 0
+        next_d_index = 0
+        next_d = ref_d(next_d_index)
         for state in trajectory[1:]:
             difference = state.state - last_state.state
             distance = np.linalg.norm(difference[0:2])
             
-            num_ref_points = int((last_distance + distance) / self.ref_d)
-            for i in range(1, num_ref_points + 1):
-                alpha = (i * self.ref_d - last_distance) / distance
+            while next_d <= distance:
+                alpha = next_d / distance
                 ref_state = (1 - alpha) * last_state.state + alpha * state.state
                 ref_trajectory.append(ref_state)
+                
+                next_d_index += 1
+                next_d += ref_d(next_d_index)
+            next_d -= distance
             last_state = state
-            last_distance = last_distance + distance - num_ref_points * self.ref_d
         
-        # fill reference trajectory with latest 
+        # fill reference trajectory with latest state
         while len(ref_trajectory) < min_size:
             ref_trajectory.append(trajectory[-1].state)
 
         return np.array(ref_trajectory).T
     
-    def set_reference_velocity(self, v, dt):
-        self.ref_d = v * dt
+    def set_reference_velocity(self, ref_v, cur_v, dt):
+        self.ref_v = ref_v
+        self.cur_v = cur_v
+        self.dt = dt
 
     def length(self):
         trajectory_np = self.get_trajectory_np()

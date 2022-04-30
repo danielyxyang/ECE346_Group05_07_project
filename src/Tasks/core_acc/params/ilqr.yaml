@@ -4,7 +4,7 @@ length: 0.5
 
 # box constraints
 # velocity
-v_max: 1.5 # max long vel [m/s]
+v_max: 2 # max long vel [m/s]
 v_min: 0 #0.05 # min long vel [m/s]
 
 # steering
@@ -25,12 +25,14 @@ track_width_L: 0.3
 
 # cost
 safety_distance: 1
-w_ref_traj: 5
-w_ref_orientation: 1
-w_accel: 2
-w_delta: 1
-
+ref_accel: 3.5
+w_ref_traj: 1
+w_ref_orientation: 0
 w_vel: 0
+
+w_accel: 0.5
+w_delta: 0.5
+
 
 # ilqr parameters
 T: 2
