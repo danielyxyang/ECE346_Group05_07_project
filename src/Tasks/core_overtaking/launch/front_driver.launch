@@ -1,0 +1,19 @@
+<launch>
+    <arg name="output"            default="screen"    doc="display output to screen or log file"/>
+    <arg name="ControllerTopic"   default="/control/rc_control"    doc="ROS topic to publish"/>
+    <arg name="PoseTopic"   default="/zed2/zed_node/odom"    doc="ROS topic for the pose"/>
+    <arg name="NameSpace"  default="nxX" doc="name space of the ros nodes"/>
+    <arg name="TrackFile"   default="$(find core_overtaking)/params/outerloop_center_smooth.csv"    doc="Trajectory Center"/>
+    <group ns="$(arg NameSpace)">
+        <include file="$(find rc_control)/launch/rc_control_node.launch">
+            <arg name="NameSpace" value="$(arg NameSpace)"/>
+        </include>
+        <include file="$(find zed_wrapper)/launch/zed2.launch"/>
+        <node pkg="core_overtaking" type="front_driver_node.py" name="front_driver" output="$(arg output)">
+            <param name="ControllerTopic"           value="/$(arg NameSpace)$(arg ControllerTopic)" />
+            <param name="PoseTopic"           value="/$(arg NameSpace)$(arg PoseTopic)" />
+            <param name="PlanParamsFile"     value="$(find core_overtaking)/params/front_driver.yaml" />
+            <param name="TrackFile"     value="$(arg TrackFile)" />
+        </node>
+    </group>
+</launch>
