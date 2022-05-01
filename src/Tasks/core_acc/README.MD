@@ -12,5 +12,5 @@ $ roslaunch core_acc zed.launch NameSpace:=nx5
 Launching client NX7
 ```shell
 $ source setup_client.sh 05
-$ roslaunch core_acc acc_planning.launch NameSpace:=nx7 HostNameSpace:=nx5
+$ roslaunch core_acc acc_planning.launch NameSpace:=nx7 NameSpaceHost:=nx5
 ```
