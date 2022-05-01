@@ -106,8 +106,10 @@ catkin_package(
    CATKIN_DEPENDS rospy std_msgs rc_control_msgs common
 #  DEPENDS system_lib
 )
-catkin_install_python(PROGRAMS scripts/front_driver_node.py
+catkin_install_python(PROGRAMS scripts/cruiser_node.py
 			DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+catkin_install_python(PROGRAMS scripts/overtaker_node.py
+      DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 ###########
 ## Build ##

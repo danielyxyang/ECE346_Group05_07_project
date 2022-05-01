@@ -4,7 +4,7 @@ length: 0.5
 
 # box constraints
 # velocity
-v_max: 0.8 # max long vel [m/s]
+v_max: 2 # max long vel [m/s]
 v_min: 0 #0.05 # min long vel [m/s]
 
 # steering
@@ -22,15 +22,6 @@ alat_max: 5.0
 track_file: 'outerloop_center_smooth.csv'
 track_width_R: 0.3
 track_width_L: 0.3
-track_offset: 0.15
-
-# cost
-ref_accel: 2.5
-
-w_ref_traj: 5
-w_accel: 0.5
-w_delta: 0.5
-
 
 # ilqr parameters
 T: 2
@@ -39,3 +30,25 @@ max_itr: 100
 # replan_dt: 0.1
 
 d_open_loop: [-0.0146, 0.0874, -0.0507, 0.0005, -0.0332, 0.1869, 0.0095, 0.0170, -0.0583, 0.0388]
+
+cruise:
+    # track parameters
+    track_offset: 0.15
+    ref_vel: 0.75
+    ref_accel: 2.5
+
+    # cost
+    w_ref_traj: 5
+    w_accel: 0.5
+    w_delta: 0.5
+
+overtake:
+    # track parameters
+    track_offset: -0.15
+    ref_vel: 1.25
+    ref_accel: 2.5
+
+    # cost
+    w_ref_traj: 5
+    w_accel: 0.5
+    w_delta: 0.5

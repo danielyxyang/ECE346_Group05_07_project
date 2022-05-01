@@ -1,7 +1,7 @@
 import numpy as np
 from iLQR import Cost
 
-class CostFrontDriver(Cost):
+class CostTrajectory(Cost):
 
     def __init__(self, params, get_ref_traj):
         self.params = params
@@ -13,12 +13,10 @@ class CostFrontDriver(Cost):
         self.N = params['N']  # number of planning steps
         self.dt = self.T / (self.N - 1)  # time step for each planning step
         
-        self.v_max = params['v_max']  # max velocity
-
         # cost
-        self.w_ref_traj = params['w_ref_traj']
-        self.w_accel = params['w_accel']
-        self.w_delta = params['w_delta']
+        self.w_ref_traj = 1
+        self.w_accel = 1
+        self.w_delta = 1
         self.W_control = np.array([[self.w_accel, 0], [0, self.w_delta]])
 
         # useful constants
@@ -33,6 +31,12 @@ class CostFrontDriver(Cost):
         Update soft constraints with list of FRS of dynamic obstacles (?)
         """
         self.ref_traj = self.get_ref_traj(n=self.N)
+    
+    def set_mode(self, mode):
+        self.w_ref_traj = self.params[mode]['w_ref_traj']
+        self.w_accel = self.params[mode]['w_accel']
+        self.w_delta = self.params[mode]['w_delta']
+        self.W_control = np.array([[self.w_accel, 0], [0, self.w_delta]])
 
     def get_cost(self, states, controls):
         """

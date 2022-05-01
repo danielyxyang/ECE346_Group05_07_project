@@ -10,13 +10,14 @@ class TrajectoryLoop():
         self.ref_v = 1
         self.cur_v = 0
         self.dt = 0.2
+        self.track_offset = 0
 
         self.min_v_threshold = 0.1
     
     def get_trajectory_np(self):
         return np.array([state.state for state in self.trajectory]).T
 
-    def get_reference_trajectory(self, cur_state, track_offset=0, min_size=1, ref_accel=1):
+    def get_reference_trajectory(self, cur_state, min_size=1, ref_accel=1):
         """
         Returns:
             ref_trajectory: (4, N) array with (x, y, v, psi) states and N >= min_size
@@ -35,11 +36,16 @@ class TrajectoryLoop():
         )
         v = v_smoothed(accel_t)
 
+        # apply track offset to reference trajectory using line perpendicular to line connecting position at time i-1 and i+1
+        rot = np.array([[0, 1], [-1, 0]])
+        trajectory = np.array([state.state[0:2] for state in self.trajectory + self.trajectory[0:2]]).T
+        normal = rot @ (trajectory[:, 2:] - trajectory[:, :-2])
+        ref_trajectory = trajectory[:, 0:-2] + self.track_offset * normal / np.linalg.norm(normal, axis=0)
+
         # compute closest point on reference trajectory
-        trajectory_np = np.array([state.state for state in self.trajectory])
-        distances = np.linalg.norm(trajectory_np[:, 0:2] - cur_state.state[0:2], axis=1)
+        distances = np.linalg.norm(ref_trajectory.T - cur_state.state[0:2], axis=1)
         closest_point_index = np.argmin(distances)
-        trajectory_loop = itertools.islice(itertools.cycle(self.trajectory), closest_point_index, None)
+        trajectory_loop = itertools.islice(itertools.cycle(ref_trajectory.T), closest_point_index, None)
         
         # define getter function for distance between reference points
         def ref_d(index):
@@ -50,19 +56,19 @@ class TrajectoryLoop():
 
         # obtain trajectory with points spaced according to ref_d(index)
         last_state = next(trajectory_loop)
-        ref_trajectory = [last_state.state]
+        ref_trajectory = [last_state]
         next_d_index = 0
         next_d = ref_d(next_d_index)
         for state in trajectory_loop:
             if len(ref_trajectory) >= min_size + 1:
                 break
 
-            difference = state.state - last_state.state
+            difference = state - last_state
             distance = np.linalg.norm(difference[0:2])
             
             while next_d <= distance:
                 alpha = next_d / distance
-                ref_state = (1 - alpha) * last_state.state + alpha * state.state
+                ref_state = (1 - alpha) * last_state + alpha * state
                 ref_trajectory.append(ref_state)
                 
                 next_d_index += 1
@@ -70,21 +76,16 @@ class TrajectoryLoop():
             next_d -= distance
             last_state = state
         ref_trajectory = np.array(ref_trajectory).T
-        
-        # apply track offset by computing gradient between state at i-1 and i+1 for time i
-        rot = np.array([[0, 1], [-1, 0]])
-        normal = rot @ (ref_trajectory[0:2, 1]  - ref_trajectory[0:2, 0])
-        ref_trajectory[0:2, 0] += track_offset * normal / np.linalg.norm(normal, axis=0)
 
-        normals = rot @ (ref_trajectory[0:2, 2:] - ref_trajectory[0:2, :-2])
-        ref_trajectory[0:2, 1:min_size] += track_offset * normals / np.linalg.norm(normals, axis=0)
-
-        return ref_trajectory[0:min_size]
+        return ref_trajectory
     
     def set_reference_velocity(self, ref_v, cur_v, dt):
         self.ref_v = ref_v
         self.cur_v = cur_v
         self.dt = dt
+    
+    def set_track_offset(self, track_offset):
+        self.track_offset = track_offset
 
     def length(self):
         trajectory_np = self.get_trajectory_np()

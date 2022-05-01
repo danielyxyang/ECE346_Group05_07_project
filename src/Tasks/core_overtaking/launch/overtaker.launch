@@ -2,6 +2,7 @@
     <arg name="output"            default="screen"    doc="display output to screen or log file"/>
     <arg name="ControllerTopic"   default="/control/rc_control"    doc="ROS topic to publish"/>
     <arg name="PoseTopic"   default="/zed2/zed_node/odom"    doc="ROS topic for the pose"/>
+    <arg name="PoseHostTopic"   default="/zed2/zed_node/odom"    doc="ROS topic for the pose"/>
     <arg name="NameSpace"  default="nxX" doc="name space of the ROS nodes"/>
     <arg name="NameSpaceHost"  default="nxX" doc="name space of the host ROS nodes"/>
     <arg name="TrackFile"   default="$(find core_overtaking)/params/outerloop_center_smooth.csv"    doc="Trajectory Center"/>
@@ -10,11 +11,11 @@
             <arg name="NameSpace" value="$(arg NameSpace)"/>
         </include>
         <include file="$(find zed_wrapper)/launch/zed2.launch"/>
-        <node pkg="core_overtaking" type="front_driver_node.py" name="front_driver" output="$(arg output)">
+        <node pkg="core_overtaking" type="overtaker_node.py" name="overtaker" output="$(arg output)">
             <param name="ControllerTopic"           value="/$(arg NameSpace)$(arg ControllerTopic)" />
             <param name="PoseTopic"           value="/$(arg NameSpace)$(arg PoseTopic)" />
-            <param name="PoseHostTopic"           value="/$(arg NameSpaceHost)$(arg PoseTopic)" />
-            <param name="PlanParamsFile"     value="$(find core_overtaking)/params/front_driver.yaml" />
+            <param name="PoseHostTopic"           value="/$(arg NameSpaceHost)$(arg PoseHostTopic)" />
+            <param name="ParamsFile"     value="$(find core_overtaking)/params/params.yaml" />
             <param name="TrackFile"     value="$(arg TrackFile)" />
         </node>
     </group>

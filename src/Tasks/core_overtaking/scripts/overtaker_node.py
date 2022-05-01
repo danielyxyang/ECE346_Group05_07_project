@@ -9,11 +9,13 @@ from nav_msgs.msg import Odometry
 
 from MPC import MPC, State
 from iLQR import Track
-from cost_front_driver import CostFrontDriver
+from cost_trajectory import CostTrajectory
 from trajectory import TrajectoryLoop
 
+CRUISING = "cruise"
+OVERTAKING = "overtake"
 
-class FrontDriver():
+class Overtaker():
     def __init__(self):
         rospy.init_node('front_driver_node')
         rospy.loginfo("Start front driver node")
@@ -22,25 +24,26 @@ class FrontDriver():
         controller_topic = rospy.get_param("~ControllerTopic")
         odom_topic = rospy.get_param("~PoseTopic")
         odom_host_topic = rospy.get_param("~PoseHostTopic")
-        params_file = rospy.get_param("~PlanParamsFile")
+        params_file = rospy.get_param("~ParamsFile")
+        # params_cruise_file = rospy.get_param("~ParamsCruiseFile")
+        # params_overtake_file = rospy.get_param("~ParamsOvertakeFile")
         track_file = rospy.get_param("~TrackFile")    
 
         # load parameters
         with open(params_file) as file:
             self.params = yaml.load(file, Loader=yaml.FullLoader)
+        # with open(params_cruise_file) as file:
+        #     self.params["cruise"] = yaml.load(file, Loader=yaml.FullLoader)
+        # with open(params_overtake_file) as file:
+        #     self.params["overtake"] = yaml.load(file, Loader=yaml.FullLoader)
+        
+        self.max_rate_time = 0.01
+        self.max_rate_space = 0.025
         
         self.T = self.params['T']
         self.N = self.params['N']
         self.replan_dt = self.T / (self.N - 1)
 
-        self.max_rate_time = 0.01
-        self.max_rate_space = 0.025
-
-        self.v_max = self.params['v_max']
-        self.v_min = self.params['v_min']
-        self.ref_accel = self.params['ref_accel']
-        self.track_offset = self.params['track_offset']
-        
         # load track file
         x, y = [], []
         with open(track_file, newline='') as f:
@@ -65,12 +68,16 @@ class FrontDriver():
         self.last_p_host = None
 
         # define planner
-        cost = CostFrontDriver(self.params, self._get_ref_traj)
-        self.planner = MPC(cost, self.params, pose_topic=odom_topic, control_topic=controller_topic)
+        self.cost = CostTrajectory(self.params, self._get_ref_traj)
+        self.planner = MPC(self.cost, self.params, pose_topic=odom_topic, control_topic=controller_topic)
+        
+        # run
+        self.set_mode(CRUISING)
+        self.planner.run()
 
 
     def _get_ref_traj(self, n=None):
-        ref_trajectory = self.trajectory.get_reference_trajectory(self.last_p, min_size=n, track_offset=self.track_offset, ref_accel=self.ref_accel)
+        ref_trajectory = self.trajectory.get_reference_trajectory(self.last_p, min_size=n, ref_accel=self.params[self.mode]["ref_accel"])
         if n is not None:
             return ref_trajectory[:, :n]
         else:
@@ -103,10 +110,22 @@ class FrontDriver():
         # return state
         self.last_p = self._odom_to_state(odom_msg, prev_state=self.last_p)
 
-        self.trajectory.set_reference_velocity(self.v_max, self.last_p.state[2], self.replan_dt)
+        if self.last_p.state[0] > 3 and self.last_p.state[1] > 0.5 and self.last_p.state[1] < 3:
+            self.set_mode(OVERTAKING)
+        else:
+            self.set_mode(CRUISING)
 
     def subscribe_odom_host(self, odom_msg):
         self.last_p_host = self._odom_to_state(odom_msg, prev_state=self.last_p_host)
+
+    def set_mode(self, mode):
+        if not hasattr(self, "mode") or self.mode != mode:
+            print("Mode: {}".format(mode))
+            self.mode = mode
+        self.cost.set_mode(self.mode)
+        if self.last_p is not None:
+            self.trajectory.set_reference_velocity(self.params[mode]["ref_vel"], self.last_p.state[2], self.replan_dt)
+        self.trajectory.set_track_offset(self.params[mode]["track_offset"])
 
     def plot_pose(self):
         # plot outer loop of track
@@ -130,12 +149,12 @@ class FrontDriver():
 
 
 if __name__ == '__main__':
-    front_driver = FrontDriver()
+    overtaker = Overtaker()
 
     plt.figure(figsize=(6, 6))
     while not rospy.is_shutdown():
         plt.clf()
-        front_driver.plot_pose()
+        overtaker.plot_pose()
         plt.xlim((-3, 4))
         plt.ylim((-1, 6))
         plt.pause(0.2) # display active figure and pause

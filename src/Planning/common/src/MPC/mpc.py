@@ -34,6 +34,7 @@ class MPC():
 
         # set up the optimal control solver
         self.ocp_solver = iLQR(cost, params=self.params)
+        self.obs_list = []
 
         rospy.loginfo("Successfully initialized the solver with horizon {}s, and {} steps.".format(self.T, self.N))
 
@@ -45,7 +46,10 @@ class MPC():
         self.pose_sub = rospy.Subscriber(pose_topic, Odometry, self.odom_sub_callback, queue_size=1)
     
         # start planning thread
-        self.thread_ilqr = threading.Thread(target=self.ilqr_pub_thread).start()
+        self.thread_ilqr = threading.Thread(target=self.ilqr_pub_thread)
+    
+    def run(self):
+        self.thread_ilqr.start()
         
     def odom_sub_callback(self, odomMsg):
         """
@@ -128,9 +132,12 @@ class MPC():
                 # static_obs = EllipsoidObj(q=ego_q, Q=ego_Q)
                 # static_obs_list = [static_obs for _ in range(self.N)]
                 
-                sol_x, sol_u, _, _, sol_K, _, _ = self.ocp_solver.solve(cur_state.state, u_init, record=True, obs_list=[])
+                sol_x, sol_u, _, _, sol_K, _, _ = self.ocp_solver.solve(cur_state.state, u_init, record=True, obs_list=self.obs_list)
                 cur_plan = Plan(sol_x, sol_u, sol_K, cur_state.t, self.replan_dt, self.N)
                 self.plan_buffer.writeFromNonRT(cur_plan)
+    
+    def set_obs_list(self, obs_list):
+        self.obs_list = obs_list
 
 class State():
     def __init__(self, state, t) -> None:
