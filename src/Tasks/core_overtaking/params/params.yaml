@@ -31,10 +31,21 @@ max_itr: 100
 
 d_open_loop: [-0.0146, 0.0874, -0.0507, 0.0005, -0.0332, 0.1869, 0.0095, 0.0170, -0.0583, 0.0388]
 
+front_driver:
+    # track parameters
+    track_offset: 0.15
+    ref_vel: 0.7
+    ref_accel: 2.5
+
+    # cost
+    w_ref_traj: 5
+    w_accel: 0.5
+    w_delta: 0.5
+
 cruise:
     # track parameters
     track_offset: 0.15
-    ref_vel: 0.75
+    ref_vel: 0.8
     ref_accel: 2.5
 
     # cost

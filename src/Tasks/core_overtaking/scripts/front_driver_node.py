@@ -12,18 +12,16 @@ from iLQR import Track
 from cost_trajectory import CostTrajectory
 from trajectory import TrajectoryLoop
 
-CRUISING = "cruise"
-OVERTAKING = "overtake"
+FRONT_DRIVER = "front_driver"
 
-class Overtaker():
+class FrontDriver():
     def __init__(self):
-        rospy.init_node('overtaker_node')
-        rospy.loginfo("Start overtaker_node")
+        rospy.init_node('front_driver_node')
+        rospy.loginfo("Start front driver node")
         
         # read parameters
         controller_topic = rospy.get_param("~ControllerTopic")
         odom_topic = rospy.get_param("~PoseTopic")
-        odom_host_topic = rospy.get_param("~PoseHostTopic")
         params_file = rospy.get_param("~ParamsFile")
         track_file = rospy.get_param("~TrackFile")    
 
@@ -51,27 +49,24 @@ class Overtaker():
         
         # define trajectory based on given track
         self.trajectory = TrajectoryLoop([State(np.array([x, y, 0, 0]), 0) for x, y, in center_line.T])
+        self.trajectory.set_track_offset(self.params[FRONT_DRIVER]["track_offset"])
 
         # subscribe to odometry topic
         rospy.loginfo("Subscribing to {}".format(odom_topic))
         self.sub_odom = rospy.Subscriber(odom_topic, Odometry, self.subscribe_odom, queue_size=1)
-        rospy.loginfo("Subscribing to {}".format(odom_host_topic))
-        self.sub_odom_host = rospy.Subscriber(odom_host_topic, Odometry, self.subscribe_odom_host, queue_size=1)
         
         self.last_p = None
-        self.last_p_host = None
 
         # define planner
         self.cost = CostTrajectory(self.params, self._get_ref_traj)
+        self.cost.set_mode(FRONT_DRIVER)
         self.planner = MPC(self.cost, self.params, pose_topic=odom_topic, control_topic=controller_topic)
         
-        # run
-        self.set_mode(CRUISING)
+        # run planner
         self.planner.run()
 
-
     def _get_ref_traj(self, n=None):
-        ref_trajectory = self.trajectory.get_reference_trajectory(self.last_p, min_size=n, ref_accel=self.params[self.mode]["ref_accel"])
+        ref_trajectory = self.trajectory.get_reference_trajectory(self.last_p, min_size=n, ref_accel=self.params[FRONT_DRIVER]["ref_accel"])
         if n is not None:
             return ref_trajectory[:, :n]
         else:
@@ -103,54 +98,8 @@ class Overtaker():
     def subscribe_odom(self, odom_msg):
         # return state
         self.last_p = self._odom_to_state(odom_msg, prev_state=self.last_p)
-
-        if self.last_p.state[0] > 3 and self.last_p.state[1] > 0.5 and self.last_p.state[1] < 3:
-            self.set_mode(OVERTAKING)
-        else:
-            self.set_mode(CRUISING)
-
-    def subscribe_odom_host(self, odom_msg):
-        self.last_p_host = self._odom_to_state(odom_msg, prev_state=self.last_p_host)
-
-    def set_mode(self, mode):
-        if not hasattr(self, "mode") or self.mode != mode:
-            print("Mode: {}".format(mode))
-            self.mode = mode
-        self.cost.set_mode(self.mode)
-        if self.last_p is not None:
-            self.trajectory.set_reference_velocity(self.params[mode]["ref_vel"], self.last_p.state[2], self.replan_dt)
-        self.trajectory.set_track_offset(self.params[mode]["track_offset"])
-
-    def plot_pose(self):
-        # plot outer loop of track
-        self.track.plot_track()
-        self.track.plot_track_center()
-
-        # plot current position of front car
-        if self.last_p is not None:
-            plt.scatter([self.last_p.state[0]], [self.last_p.state[1]], marker="*", s=50, c="green")
-        # plot current position of back car
-        if self.last_p_host is not None:
-            plt.scatter([self.last_p_host.state[0]], [self.last_p_host.state[1]], marker="*", s=50, c="orange")
-        
-        # plot reference trajectory along track
-        ref_trajectory = self._get_ref_traj(n=self.N)
-        plt.scatter(ref_trajectory[0], ref_trajectory[1], marker="o", s=25, edgecolors="green", facecolors="none")
-        # plot iLQR trajectory of back car
-        plan = self.planner.plan_buffer.readFromRT()
-        if plan is not None:
-            plt.scatter(plan.nominal_x[0], plan.nominal_x[1], marker="x", s=25, c="orange")
-
+        self.trajectory.set_reference_velocity(self.params[FRONT_DRIVER]["ref_vel"], self.last_p.state[2], self.replan_dt)
 
 if __name__ == '__main__':
-    overtaker = Overtaker()
-
-    plt.figure(figsize=(6, 6))
-    while not rospy.is_shutdown():
-        plt.clf()
-        overtaker.plot_pose()
-        plt.xlim((-3, 4))
-        plt.ylim((-1, 6))
-        plt.pause(0.2) # display active figure and pause
-    
-    # rospy.spin()
+    overtaker = FrontDriver()
+    rospy.spin()

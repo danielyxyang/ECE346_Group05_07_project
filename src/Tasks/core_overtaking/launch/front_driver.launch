@@ -9,7 +9,7 @@
             <arg name="NameSpace" value="$(arg NameSpace)"/>
         </include>
         <include file="$(find zed_wrapper)/launch/zed2.launch"/>
-        <node pkg="core_overtaking" type="overtaking_planning_node.py" name="acc_planning" output="$(arg output)">
+        <node pkg="core_overtaking" type="front_driver_node.py" name="front_driver" output="$(arg output)">
             <param name="ControllerTopic"           value="/$(arg NameSpace)$(arg ControllerTopic)" />
             <param name="PoseTopic"           value="/$(arg NameSpace)$(arg PoseTopic)" />
             <param name="ParamsFile"     value="$(find core_overtaking)/params/params.yaml" />
