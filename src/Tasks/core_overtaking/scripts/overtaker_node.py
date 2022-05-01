@@ -110,6 +110,15 @@ class Overtaker():
         # return state
         self.last_p = self._odom_to_state(odom_msg, prev_state=self.last_p)
 
+        if self.last_p is not None and self.last_p_host is not None:
+            overtaking_distance = 1
+            mergeback_distance = 2
+            if np.linalg.norm(self.last_p.state[0:2] - self.last_p_host.state[0:2]) < overtaking_distance:
+                self.set_mode(OVERTAKING)
+        
+            if self.mode == OVERTAKING and np.linalg.norm(self.last_p.state[0:2] - self.last_p_host.state[0:2]) > mergeback_distance:
+                self.set_mode(CRUISING)
+
         # if self.last_p.state[0] > 3 and self.last_p.state[1] > 0.5 and self.last_p.state[1] < 3:
         #     self.set_mode(OVERTAKING)
         # else:

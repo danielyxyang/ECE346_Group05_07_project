@@ -49,7 +49,7 @@ front_driver:
 cruise:
     # track parameters
     track_offset: 0.15
-    ref_vel: 0.8
+    ref_vel: 1
     ref_accel: 2.5
 
     # cost
