@@ -1,11 +1,13 @@
 import numpy as np
 from iLQR import Cost
+from constraints_trajectory import ConstraintsTrajectory
 
 class CostTrajectory(Cost):
 
     def __init__(self, params, get_ref_traj):
         self.params = params
         self.get_ref_traj = get_ref_traj
+        self.soft_constraints = ConstraintsTrajectory(params)
         self.gamma = 0.9
 
         # load parameters
@@ -26,17 +28,22 @@ class CostTrajectory(Cost):
         self.gammas_inv = np.cumprod(np.full((self.N), fill_value=self.gamma))[::-1]
     
     #* New stuff.
-    def init_cost(self, frs_list):
+    def init_cost(self, obs_list):
         """
         Update soft constraints with list of FRS of dynamic obstacles (?)
         """
         self.ref_traj = self.get_ref_traj(n=self.N)
+
+        self.obs_list = obs_list
+        self.soft_constraints.init_constraints(obs_list)
     
     def set_mode(self, mode):
         self.w_ref_traj = self.params[mode]['w_ref_traj']
         self.w_accel = self.params[mode]['w_accel']
         self.w_delta = self.params[mode]['w_delta']
         self.W_control = np.array([[self.w_accel, 0], [0, self.w_delta]])
+        
+        self.soft_constraints.set_mode(mode)
 
     def get_cost(self, states, controls):
         """
@@ -59,9 +66,12 @@ class CostTrajectory(Cost):
         # control regularizer
         c_control = np.einsum("an,ab,bn->n", controls, self.W_control, controls)
         J_vec += c_control
+
+        # constraints
+        c_constraint = self.soft_constraints.get_cost(states, controls)
+        J_vec += c_constraint
         
         # total scalar cost
-        # J = np.sum(self.gammas * J_vec)
         J = np.sum(J_vec)
         return J
 
@@ -85,7 +95,7 @@ class CostTrajectory(Cost):
         if len(self.ref_traj) == 0:
             return c_x, c_xx, c_u, c_uu, c_ux
 
-        # position penalty derivatives
+        # position penalty
         c_x += self.w_ref_traj * np.concatenate([
             -2 * (self.ref_traj[0:2] - states[0:2]),
             [self.zeros, self.zeros],
@@ -106,5 +116,13 @@ class CostTrajectory(Cost):
         # control regularizer
         c_u += 2 * np.einsum("ab,bn->n", self.W_control, controls)
         c_uu += 2 * np.repeat(self.W_control[:, :, np.newaxis], self.N, axis=2)
+
+        # constraints
+        c_x_cons, c_xx_cons, c_u_cons, c_uu_cons, c_ux_cons = self.soft_constraints.get_derivatives(states, controls)
+        c_x += c_x_cons
+        c_xx += c_xx_cons
+        c_u += c_u_cons
+        c_uu += c_uu_cons
+        c_ux += c_ux_cons
 
         return c_x, c_xx, c_u, c_uu, c_ux

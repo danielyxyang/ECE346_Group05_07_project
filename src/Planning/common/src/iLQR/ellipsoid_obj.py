@@ -5,7 +5,7 @@ import matplotlib
 
 from .ellipsoid import Ellipsoid
 
-class EllipsoidObj():
+class EllipsoidObj(Ellipsoid):
 
     def __init__(
         self, ellipsoid: Optional[Ellipsoid] = None,
@@ -44,7 +44,7 @@ class EllipsoidObj():
             self.Q = symmetricize(Q)
         if q.shape[0] != 2:
             raise ValueError("The dimension should be 2 but get {}!".format(q.shape[0]))
-        # super().__init__(q, Q, auto_sym, psd_tol)
+        super().__init__(q, Q, auto_sym, psd_tol)
 
         # assume 2d ellipsoid
         if r is None:
@@ -136,14 +136,14 @@ class EllipsoidObj():
             center_L=self.center_L, major_axis=self.major_axis,
         )
 
-    def plot_circ(self, ax: matplotlib.axes.Axes) -> None:
+    def plot_circ(self, ax: matplotlib.axes.Axes, **kwargs) -> None:
         theta = np.linspace(0, 2 * np.pi, 100)
         x0 = self.r * np.cos(theta)
         y0 = self.r * np.sin(theta)
         for i in range(self.n_circ):
             x = self.center[0, i] + x0
             y = self.center[1, i] + y0
-            ax.plot(x, y)
+            ax.plot(x, y, **kwargs)
 
     def obstacle_cost(self, obs: EllipsoidObj, q1: float, q2: float) -> float:
         """Computes the barrier cost given an obstacle and hyperparameters.

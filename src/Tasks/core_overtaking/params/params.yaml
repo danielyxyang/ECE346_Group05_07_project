@@ -34,13 +34,17 @@ d_open_loop: [-0.0146, 0.0874, -0.0507, 0.0005, -0.0332, 0.1869, 0.0095, 0.0170,
 front_driver:
     # track parameters
     track_offset: 0.15
-    ref_vel: 0.7
+    ref_vel: 0.6
     ref_accel: 2.5
 
     # cost
     w_ref_traj: 5
     w_accel: 0.5
     w_delta: 0.5
+    q1_lat: 0
+    q2_lat: 0
+    q1_obs: 0
+    q2_obs: 0
 
 cruise:
     # track parameters
@@ -52,6 +56,10 @@ cruise:
     w_ref_traj: 5
     w_accel: 0.5
     w_delta: 0.5
+    q1_lat: 0
+    q2_lat: 0
+    q1_obs: 1
+    q2_obs: 5
 
 overtake:
     # track parameters
@@ -63,3 +71,7 @@ overtake:
     w_ref_traj: 5
     w_accel: 0.5
     w_delta: 0.5
+    q1_lat: 0
+    q2_lat: 0
+    q1_obs: 0
+    q2_obs: 0

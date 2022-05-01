@@ -8,7 +8,7 @@ import rospy
 from nav_msgs.msg import Odometry
 
 from MPC import MPC, State
-from iLQR import Track
+from iLQR import Track, EllipsoidObj, state2ell, plot_ellipsoids
 from cost_trajectory import CostTrajectory
 from trajectory import TrajectoryLoop
 
@@ -38,6 +38,14 @@ class Overtaker():
         self.N = self.params['N']
         self.replan_dt = self.T / (self.N - 1)
 
+        ell_a = self.params["length"] / 2.0
+        ell_b = self.params["width"] / 2.0
+        wheelbase = self.params["wheelbase"]
+        self.ellipsoid = EllipsoidObj(
+            q=np.array([wheelbase / 2, 0])[:, np.newaxis],
+            Q=np.diag([ell_a ** 2, ell_b ** 2]),
+        )
+
         # load track file
         x, y = [], []
         with open(track_file, newline='') as f:
@@ -51,13 +59,6 @@ class Overtaker():
         
         # define trajectory based on given track
         self.trajectory = TrajectoryLoop([State(np.array([x, y, 0, 0]), 0) for x, y, in center_line.T])
-
-        # subscribe to odometry topic
-        rospy.loginfo("Subscribing to {}".format(odom_topic))
-        self.sub_odom = rospy.Subscriber(odom_topic, Odometry, self.subscribe_odom, queue_size=1)
-        rospy.loginfo("Subscribing to {}".format(odom_host_topic))
-        self.sub_odom_host = rospy.Subscriber(odom_host_topic, Odometry, self.subscribe_odom_host, queue_size=1)
-        
         self.last_p = None
         self.last_p_host = None
 
@@ -65,7 +66,12 @@ class Overtaker():
         self.cost = CostTrajectory(self.params, self._get_ref_traj)
         self.planner = MPC(self.cost, self.params, pose_topic=odom_topic, control_topic=controller_topic)
         
-        # run
+        # subscribe to odometry topic
+        rospy.loginfo("Subscribing to {}".format(odom_topic))
+        self.sub_odom = rospy.Subscriber(odom_topic, Odometry, self.subscribe_odom, queue_size=1)
+        rospy.loginfo("Subscribing to {}".format(odom_host_topic))
+        self.sub_odom_host = rospy.Subscriber(odom_host_topic, Odometry, self.subscribe_odom_host, queue_size=1)
+        # run planner
         self.set_mode(CRUISING)
         self.planner.run()
 
@@ -104,22 +110,31 @@ class Overtaker():
         # return state
         self.last_p = self._odom_to_state(odom_msg, prev_state=self.last_p)
 
-        if self.last_p.state[0] > 3 and self.last_p.state[1] > 0.5 and self.last_p.state[1] < 3:
-            self.set_mode(OVERTAKING)
-        else:
-            self.set_mode(CRUISING)
+        # if self.last_p.state[0] > 3 and self.last_p.state[1] > 0.5 and self.last_p.state[1] < 3:
+        #     self.set_mode(OVERTAKING)
+        # else:
+        #     self.set_mode(CRUISING)
+
+        self.trajectory.set_reference_velocity(self.params[self.mode]["ref_vel"], self.last_p.state[2], self.replan_dt)
+        self.trajectory.set_track_offset(self.params[self.mode]["track_offset"])
 
     def subscribe_odom_host(self, odom_msg):
         self.last_p_host = self._odom_to_state(odom_msg, prev_state=self.last_p_host)
+        
+        _, _, v, psi = self.last_p_host.state
+        d = v * self.replan_dt
+        dstate = d * np.array([np.cos(psi), np.sin(psi), 0, 0]) # assuming constant velocity
+        next_p_host = [self.last_p_host.state + i * dstate for i in range(self.N)]
+
+        self.planner.obs_list = [
+            [state2ell(next_p_host[i], self.ellipsoid) for i in range(self.N)]
+        ]
 
     def set_mode(self, mode):
         if not hasattr(self, "mode") or self.mode != mode:
             print("Mode: {}".format(mode))
             self.mode = mode
         self.cost.set_mode(self.mode)
-        if self.last_p is not None:
-            self.trajectory.set_reference_velocity(self.params[mode]["ref_vel"], self.last_p.state[2], self.replan_dt)
-        self.trajectory.set_track_offset(self.params[mode]["track_offset"])
 
     def plot_pose(self):
         # plot outer loop of track
@@ -127,11 +142,16 @@ class Overtaker():
         self.track.plot_track_center()
 
         # plot current position of front car
-        if self.last_p is not None:
-            plt.scatter([self.last_p.state[0]], [self.last_p.state[1]], marker="*", s=50, c="green")
-        # plot current position of back car
         if self.last_p_host is not None:
-            plt.scatter([self.last_p_host.state[0]], [self.last_p_host.state[1]], marker="*", s=50, c="orange")
+            plt.scatter([self.last_p_host.state[0]], [self.last_p_host.state[1]], marker="*", s=100, c="green")
+        # plot current position of back car
+        if self.last_p is not None:
+            plt.scatter([self.last_p.state[0]], [self.last_p.state[1]], marker="*", s=50, c="orange")
+        
+        # plot obstacles
+        for obstacle in self.planner.obs_list:
+            plot_ellipsoids(plt.gca(), obstacle, dims=[0,1], N=50, plot_center=False)
+            #obstacle.plot_circ(plt.gca(), color='r')
         
         # plot reference trajectory along track
         ref_trajectory = self._get_ref_traj(n=self.N)

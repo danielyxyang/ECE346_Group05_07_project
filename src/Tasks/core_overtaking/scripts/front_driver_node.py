@@ -101,5 +101,5 @@ class FrontDriver():
         self.trajectory.set_reference_velocity(self.params[FRONT_DRIVER]["ref_vel"], self.last_p.state[2], self.replan_dt)
 
 if __name__ == '__main__':
-    overtaker = FrontDriver()
+    front_driver = FrontDriver()
     rospy.spin()
