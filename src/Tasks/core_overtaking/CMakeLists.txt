@@ -7,7 +7,9 @@ project(core_overtaking)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED)
+find_package(catkin REQUIRED COMPONENTS
+  rospy std_msgs rc_control_msgs traj_msgs
+)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -100,10 +102,12 @@ find_package(catkin REQUIRED)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES core_overtaking
-#  CATKIN_DEPENDS other_catkin_pkg
+#  LIBRARIES yolact_ros
+   CATKIN_DEPENDS rospy std_msgs rc_control_msgs common
 #  DEPENDS system_lib
 )
+catkin_install_python(PROGRAMS scripts/front_driver_node.py
+			DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 ###########
 ## Build ##
