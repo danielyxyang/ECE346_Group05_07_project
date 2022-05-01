@@ -153,6 +153,9 @@ class PoseSubscriber:
             plt.scatter([last_state.state[0]], [last_state.state[1]], marker="*", s=50, c="orange")
         
 
+        # plot recorded trajectory of front car
+        states = self.traj_host.get_trajectory_np()
+        plt.scatter(states[0], states[1], marker="o", s=2, c="gray")
         # plot reference trajectory of front car
         states = self.traj_host.get_reference_trajectory(min_size=self.N, ref_accel=self.ref_accel)[:, :self.N]
         plt.scatter(states[0], states[1], marker="o", s=25, edgecolors="green", facecolors="none")

@@ -24,7 +24,7 @@ track_width_R: 0.3
 track_width_L: 0.3
 
 # cost
-safety_distance: 1
+safety_distance: 0.7
 ref_accel: 2.5
 w_ref_traj: 1
 w_ref_orientation: 0 # BAAAD (if iLQR cannot catch up, it still tries to match orientation!)
