@@ -57,7 +57,7 @@ class CostACC(Cost):
         J_vec += c_ref_traj
 
         # orientation penalty
-        c_ref_orientation = self.w_ref_orientation * self.gammas_inv * (self.ref_traj[3] - states[3]) ** 2
+        c_ref_orientation = self.w_ref_orientation * (self.ref_traj[3] - states[3]) ** 2
         J_vec += c_ref_orientation
 
         # velocity penalty
@@ -110,13 +110,13 @@ class CostACC(Cost):
             self.zeros,
             self.zeros,
             self.zeros,
-            -2 * self.gammas_inv * (self.ref_traj[3] - states[3]),
+            -2 * (self.ref_traj[3] - states[3]),
         ])
         c_xx += self.w_ref_orientation * np.array([
             [self.zeros, self.zeros, self.zeros, self.zeros],
             [self.zeros, self.zeros, self.zeros, self.zeros],
             [self.zeros, self.zeros, self.zeros, self.zeros],
-            [self.zeros, self.zeros, self.zeros, 2 * self.gammas_inv],
+            [self.zeros, self.zeros, self.zeros, np.full(self.N, fill_value=2)],
         ])
         
         # velocity penalty derivatives

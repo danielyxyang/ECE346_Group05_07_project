@@ -106,8 +106,8 @@ class PoseSubscriber:
         # limiting sampling rate over time
         if last_t is not None and (current_t - last_t).to_sec() < self.max_rate_time:
             return
-        # limiting sampling rate over space
-        if last_p is not None and np.linalg.norm(current_p - last_p) < self.max_rate_space:
+        # limiting sampling rate over space (but requiring at least 2 positions for computing velocity)
+        if self.traj_host.size() >= 2 and last_p is not None and np.linalg.norm(current_p - last_p) < self.max_rate_space:
             return
         
         # add state to trajectory
@@ -143,22 +143,29 @@ class PoseSubscriber:
         self.track.plot_track()
         self.track.plot_track_center()
 
-        # plot current position of back car
-        if self.traj.size() > 0:
-            last_state = self.traj.get_trajectory()[-1]
-            plt.scatter([last_state.state[0]], [last_state.state[1]], c="orange", marker="*")
         # plot current position of front car
         if self.traj_host.size() > 0:
             last_state = self.traj_host.get_trajectory()[-1]
-            plt.scatter([last_state.state[0]], [last_state.state[1]], c="green", marker="*")
+            plt.scatter([last_state.state[0]], [last_state.state[1]], marker="*", s=50, c="green")
+        # plot current position of back car
+        if self.traj.size() > 0:
+            last_state = self.traj.get_trajectory()[-1]
+            plt.scatter([last_state.state[0]], [last_state.state[1]], marker="*", s=50, c="orange")
         
+
         # plot reference trajectory of front car
         states = self.traj_host.get_reference_trajectory(min_size=self.N, ref_accel=self.ref_accel)[:, :self.N]
-        plt.scatter(states[0], states[1], s=2, c="green")
+        plt.scatter(states[0], states[1], marker="o", s=25, edgecolors="green", facecolors="none")
         # plot iLQR trajectory of back car
         plan = self.planner.plan_buffer.readFromRT()
         if plan is not None:
-            plt.scatter(plan.nominal_x[0], plan.nominal_x[1], s=2, c="blue")
+            plt.scatter(plan.nominal_x[0], plan.nominal_x[1], marker="x", s=25, c="orange")
+            
+            # plot ref_trajectory cost
+            for i in range(self.N):
+                x = [states[0, i], plan.nominal_x[0, i]]
+                y = [states[1, i], plan.nominal_x[1, i]]
+                plt.plot(x, y, 'r-', linewidth=0.75)
         
 
 if __name__ == '__main__':

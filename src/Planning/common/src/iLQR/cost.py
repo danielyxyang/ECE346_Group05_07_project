@@ -6,7 +6,7 @@ class Cost:
         self.params = params
 
     #* New stuff.
-    def update_obs(self, frs_list):
+    def init_cost(self, frs_list):
         """
         Update soft constraints with list of FRS of dynamic obstacles (?)
         """

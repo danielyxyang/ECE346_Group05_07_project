@@ -1,6 +1,7 @@
 import numpy as np
 from threading import RLock
 from scipy.spatial.transform import Rotation
+from scipy.interpolate import BPoly
 
 from MPC import State
 
@@ -95,17 +96,19 @@ class Trajectory():
         trajectory = prefix + self.get_trajectory()
         
         # TODO if empty
-
         if self.ref_v < self.min_v_threshold: # avoiding infinite loop
             return np.repeat([trajectory[0].state], min_size, axis=0).T
         
-        # set velocity according to acceleration
+        # interpolate velocity using B-splines and based on reference acceleration
         dv = ref_accel * self.dt
-        if self.cur_v < self.ref_v:
-            v = np.arange(self.cur_v, self.ref_v, dv)
-        else:
-            v = np.arange(self.cur_v, self.ref_v, -dv)
-        
+        accel_time = abs(self.ref_v - self.cur_v) / dv
+        accel_t = np.arange(self.dt, accel_time, self.dt) # time points during acceleration time
+        v_smoothed = BPoly.from_derivatives(
+            [0, accel_time], # time of keyframes
+            [[self.cur_v, 0], [self.ref_v, 0]], # velocity and derivative keyframes
+        )
+        v = v_smoothed(accel_t)
+
         # define getter function for distance between reference points
         def ref_d(index):
             if index < len(v):
