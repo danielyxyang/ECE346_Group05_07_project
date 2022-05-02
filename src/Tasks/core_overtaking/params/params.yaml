@@ -23,6 +23,10 @@ track_file: 'outerloop_center_smooth.csv'
 track_width_R: 0.3
 track_width_L: 0.3
 
+# overtaking parameters
+distance_overtaking: 1.5
+distance_mergeback: 0
+
 # ilqr parameters
 T: 2
 N: 7  # the number of planning steps
@@ -65,7 +69,7 @@ cruise:
 
 overtake:
     # track parameters
-    track_offset: -0.15
+    track_offset: -0.18
     ref_vel: 1.25
     ref_accel: 2.5
 

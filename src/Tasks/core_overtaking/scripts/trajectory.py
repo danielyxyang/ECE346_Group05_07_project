@@ -10,12 +10,19 @@ class TrajectoryLoop():
         self.ref_v = 1
         self.cur_v = 0
         self.dt = 0.2
+
         self.track_offset = 0
+        self.trajectory_with_offset = self.trajectory
 
         self.min_v_threshold = 0.1
     
     def get_trajectory_np(self):
         return np.array([state.state for state in self.trajectory]).T
+
+    def get_closest_point_index(self, position):
+        distances = np.linalg.norm(self.trajectory_with_offset.T - position, axis=1)
+        closest_point_index = np.argmin(distances)
+        return closest_point_index
 
     def get_reference_trajectory(self, cur_state, min_size=1, ref_accel=1):
         """
@@ -36,16 +43,9 @@ class TrajectoryLoop():
         )
         v = v_smoothed(accel_t)
 
-        # apply track offset to reference trajectory using line perpendicular to line connecting position at time i-1 and i+1
-        rot = np.array([[0, 1], [-1, 0]])
-        trajectory = np.array([state.state[0:2] for state in self.trajectory + self.trajectory[0:2]]).T
-        normal = rot @ (trajectory[:, 2:] - trajectory[:, :-2])
-        ref_trajectory = trajectory[:, 0:-2] + self.track_offset * normal / np.linalg.norm(normal, axis=0)
-
-        # compute closest point on reference trajectory
-        distances = np.linalg.norm(ref_trajectory.T - cur_state.state[0:2], axis=1)
-        closest_point_index = np.argmin(distances)
-        trajectory_loop = itertools.islice(itertools.cycle(ref_trajectory.T), closest_point_index, None)
+        # create iterator over trajectory starting from closest point on reference trajectory
+        closest_point_index = self.get_closest_point_index(cur_state.state[0:2])
+        trajectory_loop = itertools.islice(itertools.cycle(self.trajectory_with_offset.T), closest_point_index, None)
         
         # define getter function for distance between reference points
         def ref_d(index):
@@ -85,7 +85,11 @@ class TrajectoryLoop():
         self.dt = dt
     
     def set_track_offset(self, track_offset):
-        self.track_offset = track_offset
+        # apply track offset to reference trajectory using line perpendicular to line connecting position at time i-1 and i+1
+        rot = np.array([[0, 1], [-1, 0]])
+        trajectory = np.array([state.state[0:2] for state in self.trajectory + self.trajectory[0:2]]).T
+        normal = rot @ (trajectory[:, 2:] - trajectory[:, :-2])
+        self.trajectory_with_offset = trajectory[:, 0:-2] + track_offset * normal / np.linalg.norm(normal, axis=0)
 
     def length(self):
         trajectory_np = self.get_trajectory_np()

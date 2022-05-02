@@ -38,13 +38,8 @@ class Overtaker():
         self.N = self.params['N']
         self.replan_dt = self.T / (self.N - 1)
 
-        ell_a = self.params["length"] / 2.0
-        ell_b = self.params["width"] / 2.0
-        wheelbase = self.params["wheelbase"]
-        self.ellipsoid = EllipsoidObj(
-            q=np.array([wheelbase / 2, 0])[:, np.newaxis],
-            Q=np.diag([ell_a ** 2, ell_b ** 2]),
-        )
+        self.distance_overtaking = self.params["distance_overtaking"]
+        self.distance_mergeback = self.params["distance_mergeback"]
 
         # load track file
         x, y = [], []
@@ -110,22 +105,23 @@ class Overtaker():
         # return state
         self.last_p = self._odom_to_state(odom_msg, prev_state=self.last_p)
 
-        if self.last_p is not None and self.last_p_host is not None:
-            overtaking_distance = 1
-            mergeback_distance = 2
-            if np.linalg.norm(self.last_p.state[0:2] - self.last_p_host.state[0:2]) < overtaking_distance:
+        if self.last_p is not None and self.last_p_host is not None: # TODO
+            psi = self.last_p.state[3]
+            direction = np.array([np.cos(psi), np.sin(psi)]) # direction of back car
+            difference = self.last_p_host.state[0:2] - self.last_p.state[0:2] # vector from back car (last_p) to front car (last_p_host)
+            overtaking_status = np.sign(np.dot(direction, difference)) # -1: in front of car, +1: behind car
+
+            if self.mode == CRUISING and (
+                (overtaking_status == 1 and np.linalg.norm(difference) < self.distance_overtaking)
+            ):
                 self.set_mode(OVERTAKING)
-        
-            if self.mode == OVERTAKING and np.linalg.norm(self.last_p.state[0:2] - self.last_p_host.state[0:2]) > mergeback_distance:
+            elif self.mode == OVERTAKING and (
+                (overtaking_status == -1 and np.linalg.norm(difference) > self.distance_mergeback) or
+                (overtaking_status == +1 and np.linalg.norm(difference) > self.distance_overtaking)
+            ):
                 self.set_mode(CRUISING)
 
-        # if self.last_p.state[0] > 3 and self.last_p.state[1] > 0.5 and self.last_p.state[1] < 3:
-        #     self.set_mode(OVERTAKING)
-        # else:
-        #     self.set_mode(CRUISING)
-
         self.trajectory.set_reference_velocity(self.params[self.mode]["ref_vel"], self.last_p.state[2], self.replan_dt)
-        self.trajectory.set_track_offset(self.params[self.mode]["track_offset"])
 
     def subscribe_odom_host(self, odom_msg):
         self.last_p_host = self._odom_to_state(odom_msg, prev_state=self.last_p_host)
@@ -136,7 +132,7 @@ class Overtaker():
         next_p_host = [self.last_p_host.state + i * dstate for i in range(self.N)]
 
         self.planner.obs_list = [
-            [state2ell(next_p_host[i], self.ellipsoid) for i in range(self.N)]
+            [state2ell(next_p_host[i], self.cost.soft_constraints.ego) for i in range(self.N)]
         ]
 
     def set_mode(self, mode):
@@ -144,6 +140,7 @@ class Overtaker():
             print("Mode: {}".format(mode))
             self.mode = mode
         self.cost.set_mode(self.mode)
+        self.trajectory.set_track_offset(self.params[self.mode]["track_offset"])
 
     def plot_pose(self):
         # plot outer loop of track
@@ -159,12 +156,11 @@ class Overtaker():
         
         # plot obstacles
         for obstacle in self.planner.obs_list:
-            plot_ellipsoids(plt.gca(), obstacle, dims=[0,1], N=50, plot_center=False)
-            #obstacle.plot_circ(plt.gca(), color='r')
+            plot_ellipsoids(plt.gca(), obstacle, dims=[0,1], N=50, plot_center=False, use_alpha=True)
         
         # plot reference trajectory along track
         ref_trajectory = self._get_ref_traj(n=self.N)
-        plt.scatter(ref_trajectory[0], ref_trajectory[1], marker="o", s=25, edgecolors="green", facecolors="none")
+        plt.scatter(ref_trajectory[0], ref_trajectory[1], marker="o", s=25, edgecolors="blue", facecolors="none")
         # plot iLQR trajectory of back car
         plan = self.planner.plan_buffer.readFromRT()
         if plan is not None:
