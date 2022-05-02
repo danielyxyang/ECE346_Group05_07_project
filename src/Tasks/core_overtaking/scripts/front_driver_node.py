@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 import csv, yaml
+import threading
+import random
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
@@ -13,6 +16,9 @@ from cost_trajectory import CostTrajectory
 from trajectory import TrajectoryLoop
 
 FRONT_DRIVER = "front_driver"
+
+RIGHT_LANE = "right"
+LEFT_LANE = "left"
 
 class FrontDriver():
     def __init__(self):
@@ -49,7 +55,9 @@ class FrontDriver():
         
         # define trajectory based on given track
         self.trajectory = TrajectoryLoop([State(np.array([x, y, 0, 0]), 0) for x, y, in center_line.T])
-        self.trajectory.set_track_offset(self.params[FRONT_DRIVER]["track_offset"])
+        self.trajectory.set_track_offset(self.params[FRONT_DRIVER]["track_offset_right"])
+        self.current_lane = RIGHT_LANE
+        self.prob_switch = self.params[FRONT_DRIVER]["prob_switch"]
 
         # subscribe to odometry topic
         rospy.loginfo("Subscribing to {}".format(odom_topic))
@@ -61,6 +69,9 @@ class FrontDriver():
         self.cost = CostTrajectory(self.params, self._get_ref_traj)
         self.cost.set_mode(FRONT_DRIVER)
         self.planner = MPC(self.cost, self.params, pose_topic=odom_topic, control_topic=controller_topic)
+        
+        # run thread to change lanes
+        threading.Thread(target=self.update_track_offset).start()
         
         # run planner
         self.planner.run()
@@ -99,7 +110,41 @@ class FrontDriver():
         # return state
         self.last_p = self._odom_to_state(odom_msg, prev_state=self.last_p)
         self.trajectory.set_reference_velocity(self.params[FRONT_DRIVER]["ref_vel"], self.last_p.state[2], self.replan_dt)
+    
+    def update_track_offset(self):
+        while not rospy.is_shutdown():
+            if random.random() < self.prob_switch:
+                self.current_lane = RIGHT_LANE if self.current_lane == LEFT_LANE else LEFT_LANE
+                self.trajectory.set_track_offset(self.params[FRONT_DRIVER]["track_offset_{}".format(self.current_lane)])
+                print("Change lane: {}".format(self.current_lane))
+            time.sleep(2)
+    
+    def plot_pose(self):
+        # plot outer loop of track
+        self.track.plot_track()
+        self.track.plot_track_center()
+
+        # plot current position of front car
+        if self.last_p is not None:
+            plt.scatter([self.last_p.state[0]], [self.last_p.state[1]], marker="*", s=100, c="green")
+        
+        # plot reference trajectory along track
+        ref_trajectory = self._get_ref_traj(n=self.N)
+        plt.scatter(ref_trajectory[0], ref_trajectory[1], marker="o", s=25, edgecolors="green", facecolors="none")
+        # plot iLQR trajectory of back car
+        plan = self.planner.plan_buffer.readFromRT()
+        if plan is not None:
+            plt.scatter(plan.nominal_x[0], plan.nominal_x[1], marker="x", s=25, c="orange")
+
 
 if __name__ == '__main__':
     front_driver = FrontDriver()
-    rospy.spin()
+
+    plt.figure(figsize=(6, 6))
+    while not rospy.is_shutdown():
+        plt.clf()
+        front_driver.plot_pose()
+        plt.xlim((-3, 4))
+        plt.ylim((-1, 6))
+        plt.pause(0.2) # display active figure and pause
+    # rospy.spin()

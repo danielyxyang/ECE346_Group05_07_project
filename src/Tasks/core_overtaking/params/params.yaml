@@ -33,7 +33,9 @@ d_open_loop: [-0.0146, 0.0874, -0.0507, 0.0005, -0.0332, 0.1869, 0.0095, 0.0170,
 
 front_driver:
     # track parameters
-    track_offset: 0.15
+    track_offset_right: 0.15
+    track_offset_left: -0.15
+    prob_switch: 0.25
     ref_vel: 0.6
     ref_accel: 2.5
 
