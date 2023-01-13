@@ -1,5 +1,10 @@
 # ECE346 Final Project
 
+## Abstract
+In this project, we implemented an iLQR-based algorithm that allowed the self-driving trucks to complete adaptive cruise control and overtaking tasks. This was done by adapting the cost functions provided in previous labs and interpolating reference trajectories and velocities to ensure higher efficacy and robustness of the algorithm. These iLQR adaptations were tested by implementing them on the autonomous trucks in the MiniCity environment. The algorithm adaptations showed excellent performance on these tasks, as was seen during the in-class demonstration. This work is described here as well as discussions on shortcomings of the implementations and future experiments that could further boost the performance of autonomous navigation.
+
+See [full report](report.pdf) for further details.
+
 ## Setup
 
 ### Installation
